@@ -1003,9 +1003,9 @@ func IsStatic(node *Node) bool {
 func CanHaveIllegalDecorators(node *Node) bool {
 	switch node.Kind {
 	case KindPropertyAssignment, KindShorthandPropertyAssignment,
-		KindFunctionDeclaration, KindConstructor,
+		//KindFunctionDeclaration, KindConstructor,
 		KindIndexSignature, KindClassStaticBlockDeclaration,
-		KindMissingDeclaration, KindVariableStatement,
+		KindMissingDeclaration, //KindVariableStatement,
 		KindInterfaceDeclaration, KindTypeAliasDeclaration,
 		KindEnumDeclaration, KindModuleDeclaration,
 		KindImportEqualsDeclaration, KindImportDeclaration,

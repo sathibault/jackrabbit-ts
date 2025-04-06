@@ -5433,7 +5433,11 @@ func (c *Checker) checkVariableLikeDeclaration(node *ast.Node) {
 		// Don't validate for-in initializer as it is already an error
 		if initializer != nil && !ast.IsForInStatement(node.Parent.Parent) {
 			initializerType := c.checkExpressionCached(initializer)
-			c.checkTypeAssignableToAndOptionallyElaborate(initializerType, t, node, initializer, nil /*headMessage*/, nil)
+			if !checkInitializerOverload(c.resolveRef(t), initializerType, initializer) {
+				if !ast.IsArrayLiteralExpression(initializer) || !c.checkArrayLiteralRelatedToBits(initializerType, t, initializer.AsArrayLiteralExpression()) {
+					c.checkTypeAssignableToAndOptionallyElaborate(initializerType, t, node, initializer, nil /*headMessage*/, nil)
+				}
+			}
 			blockScopeKind := c.getCombinedNodeFlagsCached(node) & ast.NodeFlagsBlockScoped
 			if blockScopeKind == ast.NodeFlagsAwaitUsing {
 				globalAsyncDisposableType := c.getGlobalAsyncDisposableType()
@@ -10195,6 +10199,10 @@ func (c *Checker) checkPrefixUnaryExpression(node *ast.Node) *Type {
 			return c.getFreshTypeOfLiteralType(c.getBigIntLiteralType(jsnum.NewPseudoBigInt(jsnum.ParsePseudoBigInt(expr.Operand.Text()), true /*negative*/)))
 		}
 	}
+	overload := checkUnaryOpOverload(expr.Operator, operandType)
+	if overload != nil {
+		return overload
+	}
 	switch expr.Operator {
 	case ast.KindPlusToken, ast.KindMinusToken, ast.KindTildeToken:
 		c.checkNonNullType(operandType, expr.Operand)
@@ -11626,6 +11634,26 @@ func (c *Checker) checkBinaryExpression(node *ast.Node, checkMode CheckMode) *Ty
 	return c.checkBinaryLikeExpression(binary.Left, binary.OperatorToken, binary.Right, checkMode, node)
 }
 
+// This seems necessary to populate resolvedTypeArguments for types like: type uint8 = UInt<8>
+func (c *Checker) resolveRef(ty *Type) *Type {
+	if ty.objectFlags&ObjectFlagsReference != 0 {
+		data := ty.AsTypeReference()
+		if data.node != nil {
+			ty = c.createTypeReference(data.target, c.getTypeArguments(ty))
+		} else {
+			base := c.getSingleBaseForNonAugmentingSubtype(ty)
+			if base != nil {
+				ty = base
+			}
+		}
+	}
+	if isRtlType(ty) {
+		args := resolvedTypeArguments(ty)
+		c.resolveRef(args[0])
+	}
+	return ty
+}
+
 func (c *Checker) checkBinaryLikeExpression(left *ast.Node, operatorToken *ast.Node, right *ast.Node, checkMode CheckMode, errorNode *ast.Node) *Type {
 	operator := operatorToken.Kind
 	if operator == ast.KindEqualsToken && (left.Kind == ast.KindObjectLiteralExpression || left.Kind == ast.KindArrayLiteralExpression) {
@@ -11633,6 +11661,10 @@ func (c *Checker) checkBinaryLikeExpression(left *ast.Node, operatorToken *ast.N
 	}
 	leftType := c.checkExpressionEx(left, checkMode)
 	rightType := c.checkExpressionEx(right, checkMode)
+	overload := checkBinaryOpOverload(c.resolveRef(leftType), left, operatorToken, c.resolveRef(rightType), right)
+	if overload != nil {
+		return overload
+	}
 	if ast.IsLogicalOrCoalescingBinaryOperator(operator) {
 		parent := left.Parent.Parent
 		for ast.IsParenthesizedExpression(parent) || ast.IsLogicalOrCoalescingBinaryExpression(parent) {
@@ -11650,6 +11682,16 @@ func (c *Checker) checkBinaryLikeExpression(left *ast.Node, operatorToken *ast.N
 		}
 	}
 	switch operator {
+	case ast.KindHashPlusToken:
+	case ast.KindHashMinusToken:
+	case ast.KindHashAsteriskToken:
+		// If checkBinaryOpOverload didn't return a type, it's an error
+		if !isBitType(leftType) {
+			c.error(operatorToken, diagnostics.Operator_0_cannot_be_applied_to_type_1, scanner.TokenToString(operatorToken.Kind), c.TypeToString(leftType))
+		} else {
+			c.error(operatorToken, diagnostics.Operator_0_cannot_be_applied_to_type_1, scanner.TokenToString(operatorToken.Kind), c.TypeToString(rightType))
+		}
+		return c.numberType
 	case ast.KindAsteriskToken, ast.KindAsteriskAsteriskToken, ast.KindAsteriskEqualsToken, ast.KindAsteriskAsteriskEqualsToken,
 		ast.KindSlashToken, ast.KindSlashEqualsToken, ast.KindPercentToken, ast.KindPercentEqualsToken, ast.KindMinusToken,
 		ast.KindMinusEqualsToken, ast.KindLessThanLessThanToken, ast.KindLessThanLessThanEqualsToken, ast.KindGreaterThanGreaterThanToken,

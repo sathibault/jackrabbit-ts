@@ -50,6 +50,9 @@ const (
 	KindMinusToken
 	KindAsteriskToken
 	KindAsteriskAsteriskToken
+	KindHashMinusToken
+	KindHashPlusToken
+	KindHashAsteriskToken
 	KindSlashToken
 	KindPercentToken
 	KindPlusPlusToken

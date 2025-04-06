@@ -355,9 +355,9 @@ func GetBinaryOperatorPrecedence(operatorKind Kind) OperatorPrecedence {
 		return OperatorPrecedenceRelational
 	case KindLessThanLessThanToken, KindGreaterThanGreaterThanToken, KindGreaterThanGreaterThanGreaterThanToken:
 		return OperatorPrecedenceShift
-	case KindPlusToken, KindMinusToken:
+	case KindPlusToken, KindMinusToken, KindHashPlusToken, KindHashMinusToken:
 		return OperatorPrecedenceAdditive
-	case KindAsteriskToken, KindSlashToken, KindPercentToken:
+	case KindAsteriskToken, KindHashAsteriskToken, KindSlashToken, KindPercentToken:
 		return OperatorPrecedenceMultiplicative
 	case KindAsteriskAsteriskToken:
 		return OperatorPrecedenceExponentiation

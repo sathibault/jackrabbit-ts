@@ -48,8 +48,10 @@ func NewEvaluator(evaluateEntity Evaluator, outerExpressionsToSkip ast.OuterExpr
 			if value, ok := result.Value.(jsnum.Number); ok {
 				switch expr.AsPrefixUnaryExpression().Operator {
 				case ast.KindPlusToken:
+				case ast.KindHashPlusToken:
 					return Result{value, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindMinusToken:
+				case ast.KindHashMinusToken:
 					return Result{-value, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindTildeToken:
 					return Result{value.BitwiseNOT(), isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
@@ -79,6 +81,7 @@ func NewEvaluator(evaluateEntity Evaluator, outerExpressionsToSkip ast.OuterExpr
 				case ast.KindCaretToken:
 					return Result{leftNum.BitwiseXOR(rightNum), isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindAsteriskToken:
+				case ast.KindHashAsteriskToken:
 					return Result{leftNum * rightNum, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindSlashToken:
 					return Result{leftNum / rightNum, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}

@@ -339,6 +339,8 @@ func nodeCanBeDecorated(useLegacyDecorators bool, node *ast.Node, parent *ast.No
 	}
 
 	switch node.Kind {
+	case ast.KindFunctionDeclaration, ast.KindExpressionStatement:
+		return true
 	case ast.KindClassDeclaration:
 		// class declarations are valid targets
 		return true
@@ -1026,7 +1028,7 @@ func isExponentiationOperator(kind ast.Kind) bool {
 }
 
 func isMultiplicativeOperator(kind ast.Kind) bool {
-	return kind == ast.KindAsteriskToken || kind == ast.KindSlashToken || kind == ast.KindPercentToken
+	return kind == ast.KindAsteriskToken || kind == ast.KindHashAsteriskToken || kind == ast.KindSlashToken || kind == ast.KindPercentToken
 }
 
 func isMultiplicativeOperatorOrHigher(kind ast.Kind) bool {
@@ -1034,7 +1036,7 @@ func isMultiplicativeOperatorOrHigher(kind ast.Kind) bool {
 }
 
 func isAdditiveOperator(kind ast.Kind) bool {
-	return kind == ast.KindPlusToken || kind == ast.KindMinusToken
+	return kind == ast.KindPlusToken || kind == ast.KindMinusToken || kind == ast.KindHashPlusToken || kind == ast.KindHashMinusToken
 }
 
 func isAdditiveOperatorOrHigher(kind ast.Kind) bool {

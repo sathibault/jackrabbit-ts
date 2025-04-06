@@ -143,6 +143,9 @@ var textToToken = map[string]ast.Kind{
 	"*":    ast.KindAsteriskToken,
 	"/":    ast.KindSlashToken,
 	"%":    ast.KindPercentToken,
+	"#-":   ast.KindHashMinusToken,
+	"#+":   ast.KindHashPlusToken,
+	"#*":   ast.KindHashAsteriskToken,
 	"++":   ast.KindPlusPlusToken,
 	"--":   ast.KindMinusMinusToken,
 	"<<":   ast.KindLessThanLessThanToken,
@@ -841,6 +844,21 @@ func (s *Scanner) Scan() ast.Kind {
 				s.scanInvalidCharacter()
 			}
 		case '#':
+			if s.charAt(1) == '+' {
+				s.pos += 2
+				s.token = ast.KindHashMinusToken
+				break
+			}
+			if s.charAt(1) == '+' {
+				s.pos += 2
+				s.token = ast.KindHashPlusToken
+				break
+			}
+			if s.charAt(1) == '*' {
+				s.pos += 2
+				s.token = ast.KindHashAsteriskToken
+				break
+			}
 			if s.charAt(1) == '!' {
 				if s.pos == 0 {
 					s.pos += 2
