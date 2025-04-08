@@ -1,9 +1,12 @@
 package project_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
+	"os"
+	"path"
 	"strings"
 	"sync"
 	"testing"
@@ -217,6 +220,69 @@ func TestService(t *testing.T) {
 			assert.Assert(t, x1 != nil && x2 != nil)
 			assert.Assert(t, x1 != x2)
 		})
+	})
+
+	jrbFiles := map[string]string{
+		"/home/projects/TS/p1/tsconfig.json": `{
+			"compilerOptions": {
+			  "target": "ES2020",
+				"module": "nodenext",
+				"strict": true
+			},
+			"include": ["src"]
+		}`,
+		"/home/projects/TS/p1/src/index.ts": `function sayHello(){
+  var x: uint8 = 3;
+  var y: uint16 = 0;
+  while (true) {
+    y = y + x;
+  }
+}`,
+	}
+
+	t.Run("JackRabbit", func(t *testing.T) {
+		t.Parallel()
+		service, _ := setup(jrbFiles)
+		assert.Equal(t, len(service.Projects()), 0)
+		service.OpenFile("/home/projects/TS/p1/src/index.ts", jrbFiles["/home/projects/TS/p1/src/index.ts"], core.ScriptKindTS, "/home/projects/TS/p1")
+		assert.Equal(t, len(service.Projects()), 1)
+		p := service.Projects()[0]
+		assert.Equal(t, p.Kind(), project.KindConfigured)
+		l := p.LanguageService()
+		assert.Assert(t, l != nil)
+		program := p.GetProgram()
+		options := program.GetCompilerOptions()
+		enc := json.NewEncoder(os.Stderr)
+		enc.SetIndent("", "    ")
+		if err := enc.Encode(options); err != nil {
+			fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+		}
+		file := program.GetSourceFile("/home/projects/TS/p1/src/index.ts")
+		syntax := program.GetSyntacticDiagnostics(file)
+		if len(syntax) == 0 {
+			semantics := program.GetSemanticDiagnostics(file)
+			if len(semantics) == 0 {
+				cwd, err := os.Getwd()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
+				}
+
+				archPath := path.Join(cwd, "../../hlslibs")
+				hints := l.ProvideHlsHints(archPath, "/home/projects/TS/p1/src/index.ts", 0, 1000, os.Stderr)
+				fmt.Fprintln(os.Stderr, hints)
+				assert.Assert(t, len(hints) == 10)
+			} else {
+				for _, err := range semantics {
+					fmt.Fprintln(os.Stderr, err.Message())
+				}
+				assert.Assert(t, len(semantics) == 0)
+			}
+		} else {
+			for _, err := range syntax {
+				fmt.Fprintln(os.Stderr, err.Message())
+			}
+			assert.Assert(t, len(syntax) == 0)
+		}
 	})
 }
 

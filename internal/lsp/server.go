@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -194,6 +196,12 @@ func (s *Server) handleMessage(req *lsproto.RequestMessage) error {
 		return s.handleHover(req)
 	case *lsproto.DefinitionParams:
 		return s.handleDefinition(req)
+	case *lsproto.InlayHintParams:
+		return s.handleInlayHint(req)
+	case *lsproto.CodeLensParams:
+		return s.handleCodeLens(req)
+	case *lsproto.CodeLens:
+		return s.handleCodeLensResolve(req)
 	default:
 		switch req.Method {
 		case lsproto.MethodShutdown:
@@ -209,6 +217,73 @@ func (s *Server) handleMessage(req *lsproto.RequestMessage) error {
 			return nil
 		}
 	}
+}
+
+func (s *Server) handleInlayHint(req *lsproto.RequestMessage) error {
+	params := req.Params.(*lsproto.InlayHintParams)
+	file, project := s.getFileAndProject(params.TextDocument.Uri)
+	pos1, err := s.converters.lineAndCharacterToPositionForFile(params.Range.Start, file.FileName())
+	if err != nil {
+		return s.sendError(req.ID, err)
+	}
+	pos2, err2 := s.converters.lineAndCharacterToPositionForFile(params.Range.End, file.FileName())
+	if err2 != nil {
+		return s.sendError(req.ID, err2)
+	}
+
+	exePath := path.Dir(os.Args[0])
+	libPath := path.Join(exePath, "hls")
+	hlsHints := project.LanguageService().ProvideHlsHints(libPath, file.FileName(), pos1, pos2, s.stderr)
+	hints := make([]lsproto.InlayHint, 0, len(hlsHints))
+	for _, info := range hlsHints {
+		pos := s.converters.positionToLineAndCharacter(file, core.TextPos(info.Position))
+		label := fmt.Sprintf("%d STG", info.Stages)
+		hints = append(hints, lsproto.InlayHint{
+			Position: pos,
+			Label: lsproto.StringOrInlayHintLabelParts{
+				String: ptrTo(label),
+				InlayHintLabelParts: nil,
+			},
+			Tooltip: &lsproto.StringOrMarkupContent{
+				MarkupContent: &lsproto.MarkupContent{
+					Kind: lsproto.MarkupKindMarkdown,
+					Value: codeFence("ts", "hello"),
+				},
+			},
+			PaddingLeft: ptrTo(true),
+			PaddingRight: ptrTo(true),
+		})
+	}
+	s.Log(hints)
+	return s.sendResult(req.ID, &hints)
+}
+
+func (s *Server) handleCodeLens(req *lsproto.RequestMessage) error {
+	params := req.Params.(*lsproto.CodeLensParams)
+	s.Log("CodeLens", params.TextDocument.Uri)
+	lenses := make([]lsproto.CodeLens, 1)
+	lenses[0] = lsproto.CodeLens{
+		Range: lsproto.Range{
+			Start: lsproto.Position{
+				Line:      0,
+				Character: 0,
+			},
+			End: lsproto.Position{
+				Line:      0,
+				Character: 7,
+			},
+		},
+	}
+	return s.sendResult(req.ID, &lenses)
+}
+
+func (s *Server) handleCodeLensResolve(req *lsproto.RequestMessage) error {
+	lens := req.Params.(*lsproto.CodeLens)
+	lens.Command = &lsproto.Command{
+		Title:   "my codelens",
+		Command: "typescript-go.restart",
+	}
+	return s.sendResult(req.ID, &lens)
 }
 
 func (s *Server) handleInitialize(req *lsproto.RequestMessage) error {
@@ -249,6 +324,12 @@ func (s *Server) handleInitialize(req *lsproto.RequestMessage) error {
 				DiagnosticOptions: &lsproto.DiagnosticOptions{
 					InterFileDependencies: true,
 				},
+			},
+			InlayHintProvider: &lsproto.BooleanOrInlayHintOptionsOrInlayHintRegistrationOptions{
+				Boolean: ptrTo(true),
+			},
+			CodeLensProvider: &lsproto.CodeLensOptions{
+				ResolveProvider: ptrTo(true),
 			},
 		},
 	})

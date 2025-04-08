@@ -1,0 +1,44 @@
+<?xml version='1.0'?>
+<!DOCTYPE hmcc>
+<hmcc>
+  <file name="logic">
+    <config name="logic">
+      <signature spec="_1" class="sayHello"/>
+      <process name="sayHello_" class="sayHello" spec="_1" type="hp" loc="fpga0"/>
+    </config>
+    <proc name="sayHello" spec="_1" type="void" srcpos="19">
+      <variable name="x" signed="false" width="8" kind="int" usedwidth="3"/>
+      <variable name="y" kind="int" signed="false" width="16"/>
+      <option name="defaultDelay" value="32" iid="i1"/>
+      <assign name="x" srcpos="26" iid="i2">
+        <const signed="false" width="8" value="3" iid="i3"/>
+      </assign>
+      <assign name="y" srcpos="46" iid="i4">
+        <const value="0" signed="false" width="16" iid="i5"/>
+      </assign>
+      <loop srcpos="61">
+        <cond>
+          <true iid="i11">
+            <const value="1" width="1" signed="false" iid="i12"/>
+          </true>
+        </cond>
+        <body>
+          <option name="stageDelay" value="32" iid="i6"/>
+          <break cond="false" iid="i7"/>
+          <assign name="y" srcpos="78" iid="i8">
+            <binop signed="false" op="+" float="0" iid="i9" signedop="0" w1="16" w2="16" width="16">
+              <var name="y"/>
+              <cast float="0" fromfloat="0" signed="false" tosigned="false" width="16" iid="i10" w1="8">
+                <var name="x"/>
+              </cast>
+            </binop>
+          </assign>
+        </body>
+      </loop>
+    </proc>
+  </file>
+  <arch>
+    <target name="VHDL/target.xml"/>
+    <pe name="fpga0" target="VHDL/target.xml" technology="VHDL/Unknown/unknown.xml"/>
+  </arch>
+</hmcc>

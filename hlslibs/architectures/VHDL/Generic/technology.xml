@@ -1,0 +1,21 @@
+<?xml version='1.0'?>
+<!DOCTYPE technology PUBLIC "" "">
+<technology version="1.0">
+  <impl io="signal" registered="true">
+  </impl>
+  <impl io="register" registered="true">
+  </impl>
+  <ramgen name="generic" file="VHDL/generic-ramgen.tcl" style="asynchronous" ports="1" addresses="1" init="false"/>
+  <require file="VHDL/Generic/lib/cregister.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/csignal.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/divmod.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/fifo.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/fifo_dc.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/gmem.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/impack.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/mem_if.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/sema.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/stream.vhd" dst="lib" type="hdl"/>
+  <require file="VHDL/Generic/lib/stream_dc.vhd" dst="lib" type="hdl"/>
+</technology>
+

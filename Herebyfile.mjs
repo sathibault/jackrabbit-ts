@@ -121,6 +121,23 @@ async function generateLibs() {
     await Promise.all(libs.map(async lib => {
         fs.promises.copyFile(`${libsDir}/${lib}`, `./built/local/${lib}`);
     }));
+
+    await fs.promises.mkdir("./built/local/hls", { recursive: true });
+
+    const hlsDir = "./hlslibs";
+    const hlsLibs = await fs.promises.readdir(hlsDir, { recursive: true});
+
+    await Promise.all(
+        hlsLibs.filter(lib => !lib.includes('.'))
+            .map(lib => {
+                return fs.promises.mkdir(`./built/local/hls/${lib}`, { recursive: true});
+            }));
+
+    await Promise.all(
+        hlsLibs.filter(lib => lib.includes('.'))
+            .map(lib => {
+                return fs.promises.copyFile(`${hlsDir}/${lib}`, `./built/local/hls/${lib}`);
+            }));
 }
 
 export const lib = task({
@@ -250,6 +267,14 @@ async function runTests() {
 export const test = task({
     name: "test",
     run: runTests,
+});
+
+async function runTestService() {
+    await $test`${gotestsum()} ./... -run Service`;
+}
+export const testService = task({
+    name: "test:service",
+    run: runTestService,
 });
 
 async function runTestBenchmarks() {

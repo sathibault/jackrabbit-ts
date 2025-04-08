@@ -11647,8 +11647,8 @@ func (c *Checker) resolveRef(ty *Type) *Type {
 			}
 		}
 	}
-	if isRtlType(ty) {
-		args := resolvedTypeArguments(ty)
+	if IsRtlType(ty) {
+		args := ResolvedTypeArguments(ty)
 		c.resolveRef(args[0])
 	}
 	return ty
@@ -11686,7 +11686,7 @@ func (c *Checker) checkBinaryLikeExpression(left *ast.Node, operatorToken *ast.N
 	case ast.KindHashMinusToken:
 	case ast.KindHashAsteriskToken:
 		// If checkBinaryOpOverload didn't return a type, it's an error
-		if !isBitType(leftType) {
+		if !IsBitType(leftType) {
 			c.error(operatorToken, diagnostics.Operator_0_cannot_be_applied_to_type_1, scanner.TokenToString(operatorToken.Kind), c.TypeToString(leftType))
 		} else {
 			c.error(operatorToken, diagnostics.Operator_0_cannot_be_applied_to_type_1, scanner.TokenToString(operatorToken.Kind), c.TypeToString(rightType))

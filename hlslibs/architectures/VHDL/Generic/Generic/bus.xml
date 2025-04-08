@@ -1,0 +1,6 @@
+<?xml version='1.0'?>
+<!DOCTYPE bus PUBLIC "" "">
+<bus version="1.0">
+	<param name="width" value="*"/>
+	<param name="level" value="2"/>
+</bus>

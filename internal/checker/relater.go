@@ -184,14 +184,14 @@ func (c *Checker) isTypeRelatedTo(source *Type, target *Type, relation *Relation
 		relation == c.subtypeRelation ||
 		relation == c.comparableRelation {
 		// Allow bit types to be passed into TypeScript libraries expecting numbers
-		if isBitType(source) && isNumberType(target) {
+		if IsBitType(source) && isNumberType(target) {
 			return true
 		}
 		// Defer bit/rtl checking types to assignableToBitType/assignableToRtlType
-		if isBitType(target) && assignableToBitType(c.resolveRef(source), c.resolveRef(target)) {
+		if IsBitType(target) && assignableToBitType(c.resolveRef(source), c.resolveRef(target)) {
 			return true
 		}
-		if isRtlType(target) && assignableToRtlType(c.resolveRef(source), c.resolveRef(target)) {
+		if IsRtlType(target) && assignableToRtlType(c.resolveRef(source), c.resolveRef(target)) {
 			return true
 		}
 	}
@@ -443,7 +443,7 @@ func (c *Checker) checkTypeAssignableToAndOptionallyElaborate(source *Type, targ
 }
 
 func (c *Checker) checkTypeRelatedToAndOptionallyElaborate(source *Type, target *Type, relation *Relation, errorNode *ast.Node, expr *ast.Node, headMessage *diagnostics.Message, diagnosticOutput *[]*ast.Diagnostic) bool {
-	if expr != nil && isConstNumberExpression(expr) && (isBitType(target) || isRtlType(target)) {
+	if expr != nil && isConstNumberExpression(expr) && (IsBitType(target) || IsRtlType(target)) {
 		return true
 	} else if expr != nil && ast.IsArrayLiteralExpression(expr) {
 		if c.checkArrayLiteralRelatedToBits(source, target, expr.AsArrayLiteralExpression()) {
@@ -493,7 +493,7 @@ func (c *Checker) checkArrayLiteralRelatedToBits(source *Type, target *Type, exp
 			if !c.checkArrayLiteralRelatedToBits(sourcePropType, targetPropType, elem.AsArrayLiteralExpression()) {
 				break
 			}
-		} else if isBitType(targetPropType) {
+		} else if IsBitType(targetPropType) {
 			// SourcePropType may be a union type, but check the expression itself
 			if !isConstNumberExpression(elem) {
 				if sourcePropType.flags&TypeFlagsUnion != 0 {
@@ -4674,7 +4674,7 @@ func (r *Relater) membersRelatedToIndexInfo(source *Type, targetInfo *IndexInfo,
 }
 
 func (r *Relater) indexInfoRelatedTo(sourceInfo *IndexInfo, targetInfo *IndexInfo, reportErrors bool, intersectionState IntersectionState) Ternary {
-	if isBitType(sourceInfo.valueType) && isNumberType(targetInfo.valueType) {
+	if IsBitType(sourceInfo.valueType) && isNumberType(targetInfo.valueType) {
 		return TernaryTrue
 	}
 	related := r.isRelatedToEx(sourceInfo.valueType, targetInfo.valueType, RecursionFlagsBoth, reportErrors, nil /*headMessage*/, intersectionState)

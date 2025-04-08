@@ -12,13 +12,13 @@ import (
 func checkUnaryOpOverload(operator ast.Kind, exprType *Type) *Type {
 	switch operator {
 	case ast.KindPlusToken, ast.KindMinusToken, ast.KindTildeToken, ast.KindPlusPlusToken, ast.KindMinusMinusToken:
-		if isBitType(exprType) && resolvedTypeArguments(exprType) != nil {
+		if IsBitType(exprType) && ResolvedTypeArguments(exprType) != nil {
 			return exprType
-		} else if isRtlType(exprType) && resolvedTypeArguments(exprType) != nil {
+		} else if IsRtlType(exprType) && ResolvedTypeArguments(exprType) != nil {
 			return exprType
 		}
 	case ast.KindExclamationToken:
-		if (isBitType(exprType) || isRtlType(exprType)) && resolvedTypeArguments(exprType) != nil {
+		if (IsBitType(exprType) || IsRtlType(exprType)) && ResolvedTypeArguments(exprType) != nil {
 			return makeRtlBase(exprType, exprType.checker.booleanType)
 		}
 	}
@@ -30,68 +30,68 @@ func checkBinaryOpOverload(leftType *Type, left *ast.Node, operatorToken *ast.No
 	switch operator {
 	case ast.KindLessThanToken, ast.KindGreaterThanToken, ast.KindLessThanEqualsToken, ast.KindGreaterThanEqualsToken,
 		ast.KindEqualsEqualsToken, ast.KindExclamationEqualsToken, ast.KindEqualsEqualsEqualsToken, ast.KindExclamationEqualsEqualsToken:
-		if isBitType(leftType) && resolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
+		if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
 			return leftType.checker.booleanType
-		} else if isBitType(rightType) && resolvedTypeArguments(rightType) != nil && isConstNumberExpression(left) {
+		} else if IsBitType(rightType) && ResolvedTypeArguments(rightType) != nil && isConstNumberExpression(left) {
 			return rightType.checker.booleanType
 		}
-		if isRtlType(leftType) && resolvedTypeArguments(leftType) != nil &&
-			isRtlType(rightType) && resolvedTypeArguments(rightType) != nil {
+		if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil &&
+			IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil {
 			return makeRtlBase(leftType, leftType.checker.booleanType)
 		}
-		if isRtlType(leftType) && resolvedTypeArguments(leftType) != nil {
+		if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil {
 			if isConstNumberExpression(right) {
 				return makeRtlBase(leftType, leftType.checker.booleanType)
-			} else if isEqualLike(operator) && isStringGroup(resolvedTypeArguments(leftType)[0]) && isStringGroup(rightType) {
+			} else if isEqualLike(operator) && isStringGroup(ResolvedTypeArguments(leftType)[0]) && isStringGroup(rightType) {
 				return makeRtlBase(leftType, leftType.checker.booleanType)
 			}
 		}
-		if isRtlType(rightType) && resolvedTypeArguments(rightType) != nil {
+		if IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil {
 			if isConstNumberExpression(left) {
 				return makeRtlBase(rightType, rightType.checker.booleanType)
-			} else if isEqualLike(operator) && isStringGroup(leftType) && isStringGroup(resolvedTypeArguments(rightType)[0]) {
+			} else if isEqualLike(operator) && isStringGroup(leftType) && isStringGroup(ResolvedTypeArguments(rightType)[0]) {
 				return makeRtlBase(rightType, rightType.checker.booleanType)
 			}
 		}
 
 	case ast.KindAmpersandAmpersandToken, ast.KindBarBarToken:
-		if isBitType(leftType) && resolvedTypeArguments(leftType) != nil {
+		if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil {
 			return leftType.checker.booleanType
-		} else if isBitType(rightType) && resolvedTypeArguments(rightType) != nil {
+		} else if IsBitType(rightType) && ResolvedTypeArguments(rightType) != nil {
 			return rightType.checker.booleanType
 		}
-		if isRtlType(leftType) && resolvedTypeArguments(leftType) != nil {
+		if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil {
 			return makeRtlBase(leftType, leftType.checker.booleanType)
-		} else if isRtlType(rightType) && resolvedTypeArguments(rightType) != nil {
+		} else if IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil {
 			return makeRtlBase(rightType, rightType.checker.booleanType)
 		}
 
 	case ast.KindLessThanLessThanToken, ast.KindGreaterThanGreaterThanToken:
-		if isBitType(leftType) && resolvedTypeArguments(leftType) != nil &&
-			isBitType(rightType) && resolvedTypeArguments(rightType) != nil {
+		if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil &&
+			IsBitType(rightType) && ResolvedTypeArguments(rightType) != nil {
 			return leftType
 		}
-		if isBitType(leftType) && resolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
+		if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
 			return leftType
 		}
-		if isRtlType(leftType) && resolvedTypeArguments(leftType) != nil &&
-			isRtlType(rightType) && resolvedTypeArguments(rightType) != nil {
+		if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil &&
+			IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil {
 			return toRtlBase(leftType)
 		}
 
 	case ast.KindBarToken, ast.KindCaretToken, ast.KindAmpersandToken, ast.KindPlusToken, ast.KindMinusToken, ast.KindAsteriskToken, ast.KindSlashToken:
 		return usualBinaryOverload(leftType, left, rightType, right, false)
 
-	case ast.KindHashPlusToken, ast.KindHashMinusToken:
-		return usualBinaryOverload(leftType, left, rightType, right, true)
+	// case ast.KindHashPlusToken, ast.KindHashMinusToken:
+	// 	return usualBinaryOverload(leftType, left, rightType, right, true)
 
-	case ast.KindHashAsteriskToken:
-		return extendedMultiplyOverload(leftType, left, rightType, right)
+	// case ast.KindHashAsteriskToken:
+	// 	return extendedMultiplyOverload(leftType, left, rightType, right)
 
 	case ast.KindEqualsToken, ast.KindBarEqualsToken, ast.KindCaretEqualsToken, ast.KindAmpersandEqualsToken,
 		ast.KindPlusEqualsToken, ast.KindMinusEqualsToken, ast.KindAsteriskEqualsToken,
 		ast.KindLessThanLessThanEqualsToken, ast.KindGreaterThanGreaterThanEqualsToken:
-		if isBitType(leftType) && resolvedTypeArguments(leftType) != nil {
+		if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil {
 			if rightType.flags&TypeFlagsNumberLiteral != 0 || isConstNumberExpression(right) {
 				return leftType
 			}
@@ -104,10 +104,10 @@ func checkBinaryOpOverload(leftType *Type, left *ast.Node, operatorToken *ast.No
 }
 
 func usualBinaryOverload(leftType *Type, left *ast.Node, rightType *Type, right *ast.Node, carry bool) *Type {
-	if isBitType(leftType) && resolvedTypeArguments(leftType) != nil &&
-		isBitType(rightType) && resolvedTypeArguments(rightType) != nil {
-		w1 := getNumberLiteralValue(resolvedTypeArguments(leftType)[0])
-		w2 := getNumberLiteralValue(resolvedTypeArguments(rightType)[0])
+	if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil &&
+		IsBitType(rightType) && ResolvedTypeArguments(rightType) != nil {
+		w1 := getNumberLiteralValue(ResolvedTypeArguments(leftType)[0])
+		w2 := getNumberLiteralValue(ResolvedTypeArguments(rightType)[0])
 		ext := 0
 		if carry {
 			if w1 == w2 {
@@ -122,28 +122,28 @@ func usualBinaryOverload(leftType *Type, left *ast.Node, rightType *Type, right 
 		}
 		rw := max(w1, w2) + jsnum.Number(ext)
 		return makeBinaryResultType(leftType, rightType, rw)
-	} else if isBitType(leftType) && resolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
+	} else if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
 		if carry {
-			w1 := getNumberLiteralValue(resolvedTypeArguments(leftType)[0])
+			w1 := getNumberLiteralValue(ResolvedTypeArguments(leftType)[0])
 			return makeBinaryResultType(leftType, rightType, w1)
 		}
 		return leftType
-	} else if isBitType(rightType) && resolvedTypeArguments(rightType) != nil && isConstNumberExpression(left) {
+	} else if IsBitType(rightType) && ResolvedTypeArguments(rightType) != nil && isConstNumberExpression(left) {
 		if carry {
-			w1 := getNumberLiteralValue(resolvedTypeArguments(rightType)[0])
+			w1 := getNumberLiteralValue(ResolvedTypeArguments(rightType)[0])
 			return makeBinaryResultType(leftType, rightType, w1)
 		}
 		return rightType
 	}
 
-	if isRtlType(leftType) && resolvedTypeArguments(leftType) != nil &&
-		isRtlType(rightType) && resolvedTypeArguments(rightType) != nil {
-		arg1 := resolvedTypeArguments(leftType)[0]
-		arg2 := resolvedTypeArguments(rightType)[0]
-		if isBitType(arg1) && resolvedTypeArguments(arg1) != nil &&
-			isBitType(arg2) && resolvedTypeArguments(arg2) != nil {
-			w1 := getNumberLiteralValue(resolvedTypeArguments(arg1)[0])
-			w2 := getNumberLiteralValue(resolvedTypeArguments(arg2)[0])
+	if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil &&
+		IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil {
+		arg1 := ResolvedTypeArguments(leftType)[0]
+		arg2 := ResolvedTypeArguments(rightType)[0]
+		if IsBitType(arg1) && ResolvedTypeArguments(arg1) != nil &&
+			IsBitType(arg2) && ResolvedTypeArguments(arg2) != nil {
+			w1 := getNumberLiteralValue(ResolvedTypeArguments(arg1)[0])
+			w2 := getNumberLiteralValue(ResolvedTypeArguments(arg2)[0])
 			ext := 0
 			if carry {
 				if w1 == w2 {
@@ -159,21 +159,21 @@ func usualBinaryOverload(leftType *Type, left *ast.Node, rightType *Type, right 
 			rw := max(w1, w2) + jsnum.Number(ext)
 			return makeBinaryResultType(leftType, rightType, rw)
 		}
-	} else if isRtlType(leftType) && resolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
+	} else if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
 		if carry {
-			arg1 := resolvedTypeArguments(leftType)[0]
-			if isBitType(arg1) && resolvedTypeArguments(arg1) != nil {
-				w1 := getNumberLiteralValue(resolvedTypeArguments(arg1)[0])
+			arg1 := ResolvedTypeArguments(leftType)[0]
+			if IsBitType(arg1) && ResolvedTypeArguments(arg1) != nil {
+				w1 := getNumberLiteralValue(ResolvedTypeArguments(arg1)[0])
 				makeRtlBase(leftType, makeBinaryResultType(arg1, arg1, w1+jsnum.Number(1)))
 			}
 		} else {
 			return toRtlBase(leftType)
 		}
-	} else if isRtlType(rightType) && resolvedTypeArguments(rightType) != nil && isConstNumberExpression(left) {
+	} else if IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil && isConstNumberExpression(left) {
 		if carry {
-			arg2 := resolvedTypeArguments(rightType)[0]
-			if isBitType(arg2) && resolvedTypeArguments(arg2) != nil {
-				w1 := getNumberLiteralValue(resolvedTypeArguments(arg2)[0])
+			arg2 := ResolvedTypeArguments(rightType)[0]
+			if IsBitType(arg2) && ResolvedTypeArguments(arg2) != nil {
+				w1 := getNumberLiteralValue(ResolvedTypeArguments(arg2)[0])
 				makeRtlBase(rightType, makeBinaryResultType(arg2, arg2, w1+jsnum.Number(1)))
 			}
 		} else {
@@ -184,22 +184,22 @@ func usualBinaryOverload(leftType *Type, left *ast.Node, rightType *Type, right 
 }
 
 func extendedMultiplyOverload(leftType *Type, left *ast.Node, rightType *Type, right *ast.Node) *Type {
-	if isBitType(leftType) && resolvedTypeArguments(leftType) != nil &&
-		isBitType(rightType) && resolvedTypeArguments(rightType) != nil {
-		w1 := getNumberLiteralValue(resolvedTypeArguments(leftType)[0])
-		w2 := getNumberLiteralValue(resolvedTypeArguments(rightType)[0])
+	if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil &&
+		IsBitType(rightType) && ResolvedTypeArguments(rightType) != nil {
+		w1 := getNumberLiteralValue(ResolvedTypeArguments(leftType)[0])
+		w2 := getNumberLiteralValue(ResolvedTypeArguments(rightType)[0])
 		rw := w1 + w2
 		return makeBinaryResultType(leftType, rightType, rw)
 	}
 
-	if isRtlType(leftType) && resolvedTypeArguments(leftType) != nil &&
-		isRtlType(rightType) && resolvedTypeArguments(rightType) != nil {
-		arg1 := resolvedTypeArguments(leftType)[0]
-		arg2 := resolvedTypeArguments(rightType)[0]
-		if isBitType(arg1) && resolvedTypeArguments(arg1) != nil &&
-			isBitType(arg2) && resolvedTypeArguments(arg2) != nil {
-			w1 := getNumberLiteralValue(resolvedTypeArguments(arg1)[0])
-			w2 := getNumberLiteralValue(resolvedTypeArguments(arg2)[0])
+	if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil &&
+		IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil {
+		arg1 := ResolvedTypeArguments(leftType)[0]
+		arg2 := ResolvedTypeArguments(rightType)[0]
+		if IsBitType(arg1) && ResolvedTypeArguments(arg1) != nil &&
+			IsBitType(arg2) && ResolvedTypeArguments(arg2) != nil {
+			w1 := getNumberLiteralValue(ResolvedTypeArguments(arg1)[0])
+			w2 := getNumberLiteralValue(ResolvedTypeArguments(arg2)[0])
 			rw := w1 + w2
 			return makeBinaryResultType(leftType, rightType, rw)
 		}
@@ -218,7 +218,7 @@ func makeBinaryResultType(leftType *Type, rightType *Type, width jsnum.Number) *
 }
 
 func checkInitializerOverload(target *Type, initType *Type, initializer *ast.Node) bool {
-	if isBitType(target) && resolvedTypeArguments(target) != nil {
+	if IsBitType(target) && ResolvedTypeArguments(target) != nil {
 		if isConstNumberExpression(initializer) {
 			return true
 		}
@@ -227,7 +227,7 @@ func checkInitializerOverload(target *Type, initType *Type, initializer *ast.Nod
 			log.Println("checkInitializerOverload fail", target.checker.TypeToString(target), initType.checker.TypeToString(initType), exprToString(initializer, target.checker))
 		}
 		return okay
-	} else if isRtlType(target) && resolvedTypeArguments(target) != nil {
+	} else if IsRtlType(target) && ResolvedTypeArguments(target) != nil {
 		if isConstNumberExpression(initializer) {
 			return true
 		}
@@ -243,15 +243,15 @@ func checkInitializerOverload(target *Type, initType *Type, initializer *ast.Nod
 func assignableToBitType(source *Type, target *Type) bool {
 	if source.flags&TypeFlagsNumberLiteral != 0 {
 		return true
-	} else if resolvedTypeArguments(target) != nil {
-		if isBitType(source) && resolvedTypeArguments(source) != nil {
+	} else if ResolvedTypeArguments(target) != nil {
+		if IsBitType(source) && ResolvedTypeArguments(source) != nil {
 			s1 := isSignedBitType(target)
 			s2 := isSignedBitType(source)
-			w1 := resolvedTypeArguments(target)[0].AsLiteralType().value
-			w2 := resolvedTypeArguments(source)[0].AsLiteralType().value
+			w1 := ResolvedTypeArguments(target)[0].AsLiteralType().value
+			w2 := ResolvedTypeArguments(source)[0].AsLiteralType().value
 			return s1 == s2 && w1 == w2
 		} else if source.flags&TypeFlagsBooleanLike != 0 {
-			w := resolvedTypeArguments(target)[0].AsLiteralType().value
+			w := ResolvedTypeArguments(target)[0].AsLiteralType().value
 			log.Println("bool to bits", target.checker.TypeToString(target), source.checker.TypeToString(source), !isSignedBitType(target), w)
 			return !isSignedBitType(target) && w == 1
 		} else if source.flags&TypeFlagsUnion != 0 {
@@ -270,21 +270,21 @@ func assignableToBitType(source *Type, target *Type) bool {
 func assignableToRtlType(source *Type, target *Type) bool {
 	if source.flags&TypeFlagsNumberLiteral != 0 {
 		return true
-	} else if resolvedTypeArguments(target) != nil {
-		tgtArg := resolvedTypeArguments(target)[0]
-		if isRtlType(source) && resolvedTypeArguments(source) != nil {
-			srcArg := resolvedTypeArguments(source)[0]
-			if isBitType(srcArg) && resolvedTypeArguments(srcArg) != nil {
-				if isBitType(tgtArg) && resolvedTypeArguments(tgtArg) != nil {
+	} else if ResolvedTypeArguments(target) != nil {
+		tgtArg := ResolvedTypeArguments(target)[0]
+		if IsRtlType(source) && ResolvedTypeArguments(source) != nil {
+			srcArg := ResolvedTypeArguments(source)[0]
+			if IsBitType(srcArg) && ResolvedTypeArguments(srcArg) != nil {
+				if IsBitType(tgtArg) && ResolvedTypeArguments(tgtArg) != nil {
 					return assignableToBitType(srcArg, tgtArg)
 				}
 			} else if srcArg.flags&TypeFlagsBooleanLike != 0 {
-				if isBitType(tgtArg) && resolvedTypeArguments(tgtArg) != nil {
+				if IsBitType(tgtArg) && ResolvedTypeArguments(tgtArg) != nil {
 					return assignableToBitType(srcArg, tgtArg)
 				}
 			}
-		} else if isBitType(source) && resolvedTypeArguments(source) != nil {
-			if isBitType(tgtArg) && resolvedTypeArguments(tgtArg) != nil {
+		} else if IsBitType(source) && ResolvedTypeArguments(source) != nil {
+			if IsBitType(tgtArg) && ResolvedTypeArguments(tgtArg) != nil {
 				return assignableToBitType(source, tgtArg)
 			}
 		} else if source.flags&TypeFlagsUnion != 0 {
@@ -324,7 +324,7 @@ func isNumberType(t *Type) bool {
 }
 
 func toRtlBase(t *Type) *Type {
-	typeArgs := resolvedTypeArguments(t)
+	typeArgs := ResolvedTypeArguments(t)
 	if typeArgs != nil && len(typeArgs) > 0 {
 		return makeRtlBase(t, typeArgs[0])
 	}
@@ -332,12 +332,19 @@ func toRtlBase(t *Type) *Type {
 	return nil
 }
 
-func isBitType(t *Type) bool {
+func IsBitType(t *Type) bool {
 	if t.objectFlags&ObjectFlagsReference != 0 {
 		data := t.AsTypeReference()
 		return data.symbol != nil && (data.symbol.Name == "UInt" || data.symbol.Name == "Int")
 	}
 	return false
+}
+
+func BitTypeDesc(t *Type) (bool, uint32) {
+	data := t.AsTypeReference()
+	isSigned := data.symbol.Name == "Int"
+	width := getNumberLiteralValue(ResolvedTypeArguments(t)[0])
+	return isSigned, uint32(width)
 }
 
 func makeRtlBase(t *Type, arg *Type) *Type {
@@ -352,7 +359,7 @@ type rtl_table struct {
 
 var rtlCache = make(map[TypeId]rtl_table)
 
-func isRtlType(t *Type) bool {
+func IsRtlType(t *Type) bool {
 	_, ok := rtlCache[t.id]
 	if ok && rtlCache[t.id].t == t {
 		return true
@@ -397,7 +404,7 @@ func rtlBaseType(t *Type) *TypeReference {
 	return nil
 }
 
-func resolvedTypeArguments(t *Type) []*Type {
+func ResolvedTypeArguments(t *Type) []*Type {
 	d := t.AsTypeReference()
 	return d.resolvedTypeArguments
 }

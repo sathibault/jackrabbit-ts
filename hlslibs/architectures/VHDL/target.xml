@@ -1,0 +1,209 @@
+<?xml version='1.0'?>
+<!DOCTYPE target PUBLIC "" "">
+<target version="1.0" lang="vhdl">
+  <header>
+-- TARGET: VHDL
+  </header>
+  <include>
+library impulse;
+use impulse.components.all;
+  </include>
+  <operator name="slice" primary="false"/>
+  <operator name="sign_extend" function="sign_ext"/>
+  <operator name="lnot" function="lnot"/>
+  <operator name="not" builtin="true"/>
+  <operator name="and" builtin="true"/>
+  <operator name="or" builtin="true"/>
+  <operator name="xor" builtin="true"/>
+  <operator name="xnor" builtin="true"/>
+  <operator name="lsl" function="shl"/>
+  <operator name="lsr" function="lshr"/>
+  <operator name="asr" function="ashr"/>
+  <operator name="add" function="add"/>
+  <operator name="sub" function="sub"/>
+  <operator name="mul" function="mul"/>
+  <operator name="mul2" function="mul2"/>
+  <operator name="mul2_u" function="mul2_u"/>
+  <operator name="mul2_s" function="mul2_s"/>
+  <operator name="div_u" component="divmod_u" cycles="1*">
+    <generic name="WIDTH" type="in1_width"/>
+    <signal name="reset" type="reset"/>
+    <signal name="clk" type="clock"/>
+    <signal name="go" type="request" timing="late"/>
+    <signal name="n" type="in1"/>
+    <signal name="d" type="in2"/>
+    <signal name="q" type="out1"/>
+    <signal name="r" type="open"/>
+    <signal name="done" type="acknowledge"/>
+  </operator>
+  <operator name="div_s" component="divmod_s" cycles="1*">
+    <generic name="WIDTH" type="in1_width"/>
+    <signal name="reset" type="reset"/>
+    <signal name="clk" type="clock"/>
+    <signal name="go" type="request" timing="late"/>
+    <signal name="n" type="in1"/>
+    <signal name="d" type="in2"/>
+    <signal name="q" type="out1"/>
+    <signal name="r" type="open"/>
+    <signal name="done" type="acknowledge"/>
+  </operator>
+  <operator name="mod_u" component="divmod_u" cycles="1*">
+    <generic name="WIDTH" type="in1_width"/>
+    <signal name="reset" type="reset"/>
+    <signal name="clk" type="clock"/>
+    <signal name="go" type="request" timing="late"/>
+    <signal name="n" type="in1"/>
+    <signal name="d" type="in2"/>
+    <signal name="q" type="open"/>
+    <signal name="r" type="out1"/>
+    <signal name="done" type="acknowledge"/>
+  </operator>
+  <operator name="mod_s" component="divmod_s" cycles="1*">
+    <generic name="WIDTH" type="in1_width"/>
+    <signal name="reset" type="reset"/>
+    <signal name="clk" type="clock"/>
+    <signal name="go" type="request" timing="late"/>
+    <signal name="n" type="in1"/>
+    <signal name="d" type="in2"/>
+    <signal name="q" type="open"/>
+    <signal name="r" type="out1"/>
+    <signal name="done" type="acknowledge"/>
+  </operator>
+  <operator name="neg" function="neg"/>
+  <operator name="cmp_eq" function="eq"/>
+  <operator name="cmp_neq" function="neq"/>
+  <operator name="cmp_lt_s" function="cmp_less_s"/>
+  <operator name="cmp_lteq_s" function="cmp_less_equal_s"/>
+  <operator name="cmp_lt_u" function="cmp_less_u"/>
+  <operator name="cmp_lteq_u" function="cmp_less_equal_u"/>
+  <operator name="cmp_gt_s" function="cmp_greater_s"/>
+  <operator name="cmp_gteq_s" function="cmp_greater_equal_s"/>
+  <operator name="cmp_gt_u" function="cmp_greater_u"/>
+  <operator name="cmp_gteq_u" function="cmp_greater_equal_u"/>
+  <primitive name="nop" cycles="0" proc="float_bits" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+  </primitive>
+  <primitive name="nop" cycles="0" proc="double_bits" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+  </primitive>
+  <primitive name="nop" cycles="0" proc="to_float" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+  </primitive>
+  <primitive name="nop" cycles="0" proc="to_double" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+  </primitive>
+  <primitive name="satadds" cycles="0" proc="satadds16" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="satadds" cycles="0" proc="satadds18" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="satadds" cycles="0" proc="satadds24" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="satadds" cycles="0" proc="satadds32" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="satadds" cycles="0" proc="satadds36" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="satadds" cycles="0" proc="satadds64" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="sataddu" cycles="0" proc="sataddu16" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="sataddu" cycles="0" proc="sataddu18" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="sataddu" cycles="0" proc="sataddu24" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="sataddu" cycles="0" proc="sataddu32" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="sataddu" cycles="0" proc="sataddu36" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="sataddu" cycles="0" proc="sataddu64" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="input" carg="1" width="#i1"/>
+  </primitive>
+  <primitive name="satreds" cycles="0" proc="satreds16" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satreds" cycles="0" proc="satreds18" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satreds" cycles="0" proc="satreds24" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satreds" cycles="0" proc="satreds32" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satreds" cycles="0" proc="satreds36" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satreds" cycles="0" proc="satreds64" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satredu" cycles="0" proc="satredu16" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satredu" cycles="0" proc="satredu18" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satredu" cycles="0" proc="satredu24" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satredu" cycles="0" proc="satredu32" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satredu" cycles="0" proc="satredu36" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="satredu" cycles="0" proc="satredu64" type="function">
+    <signal name="i1" type="input" carg="0" width="*"/>
+    <signal name="i2" type="param" carg="1"/>
+  </primitive>
+  <primitive name="rnorm" rate="1" cycles="5" proc="rnormf" type="component" autoip="qbm::gen">
+    <parameter name="width" default="32"/>
+    <parameter name="instance" default="0"/>
+    <signal name="reset" type="reset"/>
+    <signal name="clk" type="clock"/>
+    <signal name="req" type="request"/>
+    <signal name="pipeEn" type="pipeEn"/>
+    <signal name="x" type="return"/>
+  </primitive>
+  <primitive name="rnorm" rate="1" cycles="5" proc="rnorm2f" type="component" autoip="qbm::gen">
+    <parameter name="width" default="32"/>
+    <parameter name="instance" default="1"/>
+    <signal name="reset" type="reset"/>
+    <signal name="clk" type="clock"/>
+    <signal name="req" type="request"/>
+    <signal name="pipeEn" type="pipeEn"/>
+    <signal name="x" type="return"/>
+  </primitive>
+</target>
