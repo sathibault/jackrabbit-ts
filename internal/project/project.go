@@ -9,6 +9,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/collections"
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/jackrabbit"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
@@ -56,6 +57,8 @@ type Project struct {
 	compilerOptions *core.CompilerOptions
 	languageService *ls.LanguageService
 	program         *compiler.Program
+
+	synthesisByPath map[tspath.Path]*jackrabbit.Synthesis
 }
 
 func NewConfiguredProject(configFileName string, configFilePath tspath.Path, projectService *Service) *Project {
@@ -177,6 +180,27 @@ func (p *Project) LanguageService() *ls.LanguageService {
 	return p.languageService
 }
 
+func (p *Project) GetSynthesis(fileName string) *jackrabbit.Synthesis {
+	path := tspath.ToPath(fileName, p.GetCurrentDirectory(), p.FS().UseCaseSensitiveFileNames())
+	if p.synthesisByPath != nil {
+		if s, ok := p.synthesisByPath[path]; ok {
+			return s
+		}
+	}
+	return nil
+}
+
+func (p *Project) GetOrCreateSynthesis(architecturesPath string, fileName string) *jackrabbit.Synthesis {
+	path := tspath.ToPath(fileName, p.GetCurrentDirectory(), p.FS().UseCaseSensitiveFileNames())
+	if p.synthesisByPath == nil {
+		p.synthesisByPath = make(map[tspath.Path]*jackrabbit.Synthesis)
+	}
+	if _, ok := p.synthesisByPath[path]; !ok {
+		p.synthesisByPath[path] = jackrabbit.NewSynthesis(architecturesPath)
+	}
+	return p.synthesisByPath[path]
+}
+
 func (p *Project) getOrCreateScriptInfoAndAttachToProject(fileName string, scriptKind core.ScriptKind) *ScriptInfo {
 	if scriptInfo := p.projectService.getOrCreateScriptInfoNotOpenedByClient(fileName, p.projectService.toPath(fileName), scriptKind); scriptInfo != nil {
 		scriptInfo.attachToProject(p)
@@ -189,6 +213,15 @@ func (p *Project) getScriptKind(fileName string) core.ScriptKind {
 	// Customizing script kind per file extension is a common plugin / LS host customization case
 	// which can probably be replaced with static info in the future
 	return core.GetScriptKindFromFileName(fileName)
+}
+
+// for synthesis
+func (p *Project) applyChangesToFile(path tspath.Path, edits []jackrabbit.TextEdit) {
+	if p.synthesisByPath != nil {
+		if s, ok := p.synthesisByPath[path]; ok {
+			s.ApplyEdit(edits)
+		}
+	}
 }
 
 func (p *Project) markFileAsDirty(path tspath.Path) {

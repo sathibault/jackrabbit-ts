@@ -210,6 +210,10 @@ func (s *Service) applyChangesToFile(info *ScriptInfo, changes []ls.TextChange) 
 	for _, change := range changes {
 		info.editContent(change)
 	}
+	for _, e := range changes {
+		s.logf("EDIT %d %d %d", e.Pos(), e.End(), len(e.NewText))
+	}
+	info.applyChangesToProjects(changes)
 }
 
 func (s *Service) handleDeletedFile(info *ScriptInfo, deferredDelete bool) {

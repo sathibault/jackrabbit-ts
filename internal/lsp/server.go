@@ -18,6 +18,18 @@ import (
 	"github.com/microsoft/typescript-go/internal/vfs"
 )
 
+const MethodBlockAnnotation lsproto.Method = "jackrabbit/blockAnnotation"
+
+// type BlockAnnotationParms struct {
+// 	Method string `json:"method"`
+// 	Block  uint32 `json:"block"`
+// }
+
+type BlockAnnotation struct {
+	Html     string           `json:"html"`
+	Position lsproto.Position `json:"position"`
+}
+
 type ServerOptions struct {
 	In  io.Reader
 	Out io.Writer
@@ -177,6 +189,7 @@ func (s *Server) handleMessage(req *lsproto.RequestMessage) error {
 	s.requestMethod = string(req.Method)
 
 	params := req.Params
+	s.Log(s.requestMethod, params)
 	switch params.(type) {
 	case *lsproto.InitializeParams:
 		return s.sendError(req.ID, lsproto.ErrInvalidRequest)
@@ -204,6 +217,8 @@ func (s *Server) handleMessage(req *lsproto.RequestMessage) error {
 		return s.handleCodeLensResolve(req)
 	default:
 		switch req.Method {
+		case MethodBlockAnnotation:
+			return s.handleBlockAnnotation(req)
 		case lsproto.MethodShutdown:
 			s.projectService.Close()
 			return s.sendResult(req.ID, nil)
@@ -217,6 +232,22 @@ func (s *Server) handleMessage(req *lsproto.RequestMessage) error {
 			return nil
 		}
 	}
+}
+
+func (s *Server) handleBlockAnnotation(req *lsproto.RequestMessage) error {
+	params := req.Params.(map[string]any)
+	textDocument := params["textDocument"].(map[string]any)
+	uri := lsproto.DocumentUri(textDocument["uri"].(string))
+	method := params["method"].(string)
+	block := uint(params["block"].(float64))
+	file, project := s.getFileAndProject(uri)
+	html, pos := project.LanguageService().GetBlockAnnotation(file.FileName(), method, block)
+	loc := s.converters.positionToLineAndCharacter(file, core.TextPos(pos))
+	ann := BlockAnnotation{
+		Html:     html,
+		Position: loc,
+	}
+	return s.sendResult(req.ID, &ann)
 }
 
 func (s *Server) handleInlayHint(req *lsproto.RequestMessage) error {
@@ -236,21 +267,38 @@ func (s *Server) handleInlayHint(req *lsproto.RequestMessage) error {
 	hlsHints := project.LanguageService().ProvideHlsHints(libPath, file.FileName(), pos1, pos2, s.stderr)
 	hints := make([]lsproto.InlayHint, 0, len(hlsHints))
 	for _, info := range hlsHints {
-		pos := s.converters.positionToLineAndCharacter(file, core.TextPos(info.Position))
-		label := fmt.Sprintf("%d STG", info.Stages)
+		pos := s.converters.positionToLineAndCharacter(file, core.TextPos(info.Block.Position))
+		var label string
+		var markdown string
+		if info.Block.Pipeline {
+			label = fmt.Sprintf("LT: %d", info.Block.Stages)
+			markdown = fmt.Sprintf("Latency %d", info.Block.Stages)
+		} else {
+			label = fmt.Sprintf("CY: %d", info.Block.Stages)
+			markdown = fmt.Sprintf("Cycles %d", info.Block.Stages)
+		}
 		hints = append(hints, lsproto.InlayHint{
 			Position: pos,
 			Label: lsproto.StringOrInlayHintLabelParts{
-				String: ptrTo(label),
-				InlayHintLabelParts: nil,
+				String: nil,
+				InlayHintLabelParts: &[]lsproto.InlayHintLabelPart{
+					{
+						Value: label,
+						Command: &lsproto.Command{
+							Title:     "debug",
+							Command:   "typescript-go.hlsAnnotate",
+							Arguments: &[]any{info.Method, info.Block.BlockNo},
+						},
+					},
+				},
 			},
 			Tooltip: &lsproto.StringOrMarkupContent{
 				MarkupContent: &lsproto.MarkupContent{
-					Kind: lsproto.MarkupKindMarkdown,
-					Value: codeFence("ts", "hello"),
+					Kind:  lsproto.MarkupKindMarkdown,
+					Value: markdown,
 				},
 			},
-			PaddingLeft: ptrTo(true),
+			PaddingLeft:  ptrTo(true),
 			PaddingRight: ptrTo(true),
 		})
 	}
@@ -265,11 +313,11 @@ func (s *Server) handleCodeLens(req *lsproto.RequestMessage) error {
 	lenses[0] = lsproto.CodeLens{
 		Range: lsproto.Range{
 			Start: lsproto.Position{
-				Line:      0,
+				Line:      2,
 				Character: 0,
 			},
 			End: lsproto.Position{
-				Line:      0,
+				Line:      2,
 				Character: 7,
 			},
 		},

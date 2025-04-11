@@ -3,6 +3,7 @@ package checker
 import (
 	"fmt"
 	"math"
+	"os"
 	"runtime"
 
 	"github.com/microsoft/typescript-go/internal/ast"
@@ -12,7 +13,7 @@ import (
 )
 
 func QualifiedIdentName(ident *ast.Identifier, checker *Checker) *string {
-  sym := checker.getSymbolAtLocation(ident.AsNode(), false)
+	sym := checker.getSymbolAtLocation(ident.AsNode(), false)
 	if sym != nil {
 		return qualifiedName(sym, checker)
 	}
@@ -20,48 +21,48 @@ func QualifiedIdentName(ident *ast.Identifier, checker *Checker) *string {
 }
 
 func QualifiedTypeName(t *Type, checker *Checker) *string {
-  if t.symbol != nil {
+	if t.symbol != nil {
 		return qualifiedName(t.symbol, checker)
 	}
-  return nil
+	return nil
 }
 
 func qualifiedName(sym *ast.Symbol, checker *Checker) *string {
-  name := sym.Name
-  if sym.Flags&ast.SymbolFlagsAlias != 0 {
-    sym = checker.getImmediateAliasedSymbol(sym)
-  }
-  if len(sym.Declarations) > 0 {
-    decl := sym.Declarations[0]
-    cur := decl
-    for cur.Parent != nil {
-      cur = cur.Parent
-    }
-    if ast.IsSourceFile(cur) {
+	name := sym.Name
+	if sym.Flags&ast.SymbolFlagsAlias != 0 {
+		sym = checker.getImmediateAliasedSymbol(sym)
+	}
+	if len(sym.Declarations) > 0 {
+		decl := sym.Declarations[0]
+		cur := decl
+		for cur.Parent != nil {
+			cur = cur.Parent
+		}
+		if ast.IsSourceFile(cur) {
 			sourceFile := cur.AsSourceFile()
-      name = fmt.Sprintf("%s::%s", sourceFile.FileName(), name)
-    }
-  }
-  return &name
+			name = fmt.Sprintf("%s::%s", sourceFile.FileName(), name)
+		}
+	}
+	return &name
 }
 
 func QualifiedDeclName(decl *ast.Declaration) *string {
-  if decl.Name() != nil {
+	if decl.Name() != nil {
 		if ast.IsIdentifier(decl.Name()) {
-      name := decl.Name().AsIdentifier().Text
-      cur := decl
-      for cur.Parent != nil {
-        cur = cur.Parent
-      }
+			name := decl.Name().AsIdentifier().Text
+			cur := decl
+			for cur.Parent != nil {
+				cur = cur.Parent
+			}
 			if ast.IsSourceFile(cur) {
 				sourceFile := cur.AsSourceFile()
 				name = fmt.Sprintf("%s::%s", sourceFile.FileName(), name)
 			}
 			return &name
-    }
-  }
-  fmt.Println(decl, decl.Name().Kind.String())
-  panic("invalid declaration name")
+		}
+	}
+	fmt.Fprintln(os.Stderr, decl, decl.Name().Kind.String())
+	panic("invalid declaration name")
 }
 
 type TypeDescriptor struct {
@@ -87,7 +88,8 @@ func GetDeclarationReturnType(c *Checker, node *ast.FunctionDeclaration) *Type {
 func RequireTypeDescriptor(tc *Checker, t *Type, expr *ast.Expression) *TypeDescriptor {
 	info := GetTypeDescriptor(tc, t, expr, false)
 	if info == nil {
-		fmt.Println(tc.TypeToString(t))
+		GetTypeDescriptor(tc, t, expr, true)
+		os.Stderr.Sync()
 		panic("Failed to get type descriptor")
 	}
 	return info
@@ -109,14 +111,14 @@ func GetTypeDescriptor(tc *Checker, t0 *Type, expr *ast.Expression, debug bool) 
 		}
 		desc := GetTypeDescriptor(tc, et, nil, debug)
 		if debug {
-			fmt.Println(dim, desc)
+			fmt.Fprintln(os.Stderr, dim, desc)
 		}
 		if desc != nil {
 			if expr != nil {
 				desc.Shape = ArrayExprShape(expr, tc)
-			}
-			if len(desc.Shape) == dim {
-				return desc
+				if len(desc.Shape) == dim {
+					return desc
+				}
 			}
 		}
 	} else if (t.flags & TypeFlagsBoolean) != 0 {
@@ -124,9 +126,10 @@ func GetTypeDescriptor(tc *Checker, t0 *Type, expr *ast.Expression, debug bool) 
 	} else {
 		if expr != nil && isConstNumberExpression(expr) {
 			value := TsEvaluateExpr(expr, tc)
-			if num, ok := value.(float64); ok {
-				isSigned := num < 0
-				m := math.Abs(num)
+			if n, ok := value.(jsnum.Number); ok {
+				x := float64(n)
+				isSigned := x < 0
+				m := math.Abs(x)
 				var width uint32 = 1
 				for m >= math.Pow(2, float64(width)) {
 					width++
@@ -137,9 +140,9 @@ func GetTypeDescriptor(tc *Checker, t0 *Type, expr *ast.Expression, debug bool) 
 				return &TypeDescriptor{IsSigned: isSigned, Width: width}
 			}
 		}
-		if debug {
-			fmt.Println(t, "UNRECOGNIZED")
-		}
+	}
+	if debug {
+		fmt.Fprintln(os.Stderr, "UNRECOGNIZED TYPE", tc.TypeToString(t))
 	}
 	return nil
 }
@@ -184,26 +187,34 @@ func ArrayExprShape(expr *ast.Expression, tc *Checker) []uint32 {
 			if id.Text == "Array" && len(call.Arguments.Nodes) == 1 {
 				arg := call.Arguments.Nodes[0]
 				val := TsEvaluateExpr(arg, tc)
-				if intVal, ok := val.(uint32); ok {
-					shape = append(shape, intVal)
-					return shape
+				if val != nil {
+					fmt.Fprintln(os.Stderr, "SHAPE", val)
+					if x, ok := NumberToUint32(val); ok {
+						shape = append(shape, x)
+						return shape
+					} else {
+						fmt.Fprintln(os.Stderr, "CAST ERR")
+					}
 				}
 			}
 		}
 	}
 
-	for expr.Kind == ast.KindArrayLiteralExpression {
-		lit := expr.AsArrayLiteralExpression()
-		n := len(lit.Elements.Nodes)
-		shape = append(shape, uint32(n))
-		if len(lit.Elements.Nodes) > 0 {
-			expr = lit.Elements.Nodes[0]
-		} else {
-			break
+	if expr.Kind == ast.KindArrayLiteralExpression {
+		for expr.Kind == ast.KindArrayLiteralExpression {
+			lit := expr.AsArrayLiteralExpression()
+			n := len(lit.Elements.Nodes)
+			shape = append(shape, uint32(n))
+			if len(lit.Elements.Nodes) > 0 {
+				expr = lit.Elements.Nodes[0]
+			} else {
+				break
+			}
 		}
+		return shape
 	}
 
-	return shape
+	return nil
 }
 
 func IsConstExpression(expr *ast.Node) bool {
@@ -257,7 +268,7 @@ func ResolveIdentifierExpr(c *Checker, expr *ast.Node) (*ast.Symbol, any) {
 	assert(sym != nil, "Expected symbol")
 
 	imported := false
-	if sym.Flags & ast.SymbolFlagsAlias != 0 {
+	if sym.Flags&ast.SymbolFlagsAlias != 0 {
 		sym = c.getImmediateAliasedSymbol(sym)
 		imported = true
 	}
@@ -273,7 +284,7 @@ func ResolveIdentifierExpr(c *Checker, expr *ast.Node) (*ast.Symbol, any) {
 			// Global
 			if decl.Kind == ast.KindVariableDeclaration {
 				varDecl := decl.AsVariableDeclaration()
-				if (decl.Flags & ast.NodeFlagsConst != 0) || (varDecl.Parent.Flags&ast.NodeFlagsConst != 0) {
+				if (decl.Flags&ast.NodeFlagsConst != 0) || (varDecl.Parent.Flags&ast.NodeFlagsConst != 0) {
 					if varDecl.Initializer != nil {
 						value := TsEvaluateExpr(varDecl.Initializer, c)
 						assert(value != nil, "Non-constant global")
@@ -299,7 +310,7 @@ func TsEvaluateExpr(expr *ast.Expression, checker *Checker) any {
 		if len(sym.Declarations) > 0 {
 			decl := sym.Declarations[0]
 			if ast.IsVariableDeclaration(decl) {
-				if ((decl.Flags & ast.NodeFlagsConst) != 0) || (decl.Parent != nil && (decl.Parent.Flags & ast.NodeFlagsConst) != 0) {
+				if ((decl.Flags & ast.NodeFlagsConst) != 0) || (decl.Parent != nil && (decl.Parent.Flags&ast.NodeFlagsConst) != 0) {
 					if decl.Initializer() != nil {
 						val := TsEvaluateExpr(decl.Initializer(), checker)
 						return evaluator.Result{Value: val, IsSyntacticallyString: false, ResolvedOtherFiles: false, HasExternalReferences: false}
@@ -350,7 +361,7 @@ func IsPrimitive(t *Type) bool {
 		return true
 	}
 	flags := t.flags
-	return flags & (TypeFlagsStringLike|TypeFlagsNumberLike|TypeFlagsBigIntLike|TypeFlagsEnumLike|TypeFlagsBooleanLike) != 0
+	return flags&(TypeFlagsStringLike|TypeFlagsNumberLike|TypeFlagsBigIntLike|TypeFlagsEnumLike|TypeFlagsBooleanLike) != 0
 }
 
 func IsObjectType(t *Type) bool {
@@ -360,7 +371,6 @@ func IsObjectType(t *Type) bool {
 func IsTypeReference(t *Type) bool {
 	return t.objectFlags&ObjectFlagsReference != 0
 }
-
 
 func IsTypeReferenceOf(t *Type, name string) bool {
 	if t.objectFlags&ObjectFlagsReference != 0 {
@@ -390,6 +400,20 @@ func mustParseInt(s string) uint32 {
 		panic(err)
 	}
 	return i
+}
+
+func NumberToUint32(val any) (uint32, bool) {
+	if n, ok := val.(jsnum.Number); ok {
+		x := float64(n)
+		if smi := int32(x); float64(smi) == x {
+			return uint32(smi), true
+		}
+		// Otherwise, take x modulo 2^32, mapping positive numbers
+		// to [0, 2^32) and negative numbers to (-2^32, -0.0].
+		x = math.Mod(x, 1<<32)
+		return uint32(x), true
+	}
+	return 0, false
 }
 
 func assert(condition bool, args ...interface{}) {

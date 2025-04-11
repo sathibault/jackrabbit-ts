@@ -14,46 +14,46 @@ import (
 var castFunctionRe = regexp.MustCompile("^u?int[0-9]+$")
 
 var cppTokenOp = map[ast.Kind]string{
-	ast.KindLessThanToken:            "<",
-	ast.KindGreaterThanToken:         ">",
-	ast.KindLessThanEqualsToken:      "<=",
-	ast.KindGreaterThanEqualsToken:   ">=",
-	ast.KindEqualsEqualsToken:        "==",
-	ast.KindExclamationEqualsToken:   "!=",
-	ast.KindEqualsEqualsEqualsToken:    "==",
+	ast.KindLessThanToken:                "<",
+	ast.KindGreaterThanToken:             ">",
+	ast.KindLessThanEqualsToken:          "<=",
+	ast.KindGreaterThanEqualsToken:       ">=",
+	ast.KindEqualsEqualsToken:            "==",
+	ast.KindExclamationEqualsToken:       "!=",
+	ast.KindEqualsEqualsEqualsToken:      "==",
 	ast.KindExclamationEqualsEqualsToken: "!=",
-	ast.KindEqualsGreaterThanToken:   "=>",
-	ast.KindPlusToken:                "+",
-	ast.KindMinusToken:               "-",
-	ast.KindAsteriskToken:            "*",
-	ast.KindHashPlusToken:            "+",
-	ast.KindHashMinusToken:           "-",
-	ast.KindHashAsteriskToken:        "*",
-	ast.KindSlashToken:               "/",
-	ast.KindPercentToken:             "%",
-	ast.KindLessThanLessThanToken:    "<<",
-	ast.KindGreaterThanGreaterThanToken: ">>",
-	ast.KindAmpersandToken:           "&",
-	ast.KindBarToken:                 "|",
-	ast.KindCaretToken:               "^",
-	ast.KindExclamationToken:         "!",
-	ast.KindTildeToken:               "~",
-	ast.KindAmpersandAmpersandToken:  "&&",
-	ast.KindBarBarToken:              "||",
+	ast.KindEqualsGreaterThanToken:       "=>",
+	ast.KindPlusToken:                    "+",
+	ast.KindMinusToken:                   "-",
+	ast.KindAsteriskToken:                "*",
+	ast.KindHashPlusToken:                "+",
+	ast.KindHashMinusToken:               "-",
+	ast.KindHashAsteriskToken:            "*",
+	ast.KindSlashToken:                   "/",
+	ast.KindPercentToken:                 "%",
+	ast.KindLessThanLessThanToken:        "<<",
+	ast.KindGreaterThanGreaterThanToken:  ">>",
+	ast.KindAmpersandToken:               "&",
+	ast.KindBarToken:                     "|",
+	ast.KindCaretToken:                   "^",
+	ast.KindExclamationToken:             "!",
+	ast.KindTildeToken:                   "~",
+	ast.KindAmpersandAmpersandToken:      "&&",
+	ast.KindBarBarToken:                  "||",
 }
 
 type HlsProcGen struct {
-	AsModule        bool
-	Descriptor      *FunctionDescriptor
-	Checker         *checker.Checker
-	MemoryInit      map[string][]string
-	Symtab          *Namer
-	Decl            *ast.FunctionDeclaration
-	Root            *XMLBuilder
-	LastVar         *XMLBuilder
-	ReturnDesc      *checker.TypeDescriptor
+	AsModule         bool
+	Descriptor       *FunctionDescriptor
+	Checker          *checker.Checker
+	MemoryInit       map[string][]string
+	Symtab           *Namer
+	Decl             *ast.FunctionDeclaration
+	Root             *XMLBuilder
+	LastVar          *XMLBuilder
+	ReturnDesc       *checker.TypeDescriptor
 	StatementContext []*XMLBuilder
-	FoldExpr map[ast.NodeId]bool
+	FoldExpr         map[ast.NodeId]bool
 }
 
 func NewHlsProcGen(
@@ -63,14 +63,14 @@ func NewHlsProcGen(
 	asModule bool,
 ) *HlsProcGen {
 	proc := &HlsProcGen{
-		AsModule:        asModule,
-		Decl:            node,
-		Descriptor:      descriptor,
-		Checker:         tc,
-		Symtab:          NewNamer(),
-		MemoryInit:      make(map[string][]string),
+		AsModule:         asModule,
+		Decl:             node,
+		Descriptor:       descriptor,
+		Checker:          tc,
+		Symtab:           NewNamer(),
+		MemoryInit:       make(map[string][]string),
 		StatementContext: []*XMLBuilder{},
-		FoldExpr: make(map[ast.NodeId]bool),
+		FoldExpr:         make(map[ast.NodeId]bool),
 	}
 
 	attrs := map[string]string{
@@ -167,9 +167,21 @@ func (p *HlsProcGen) Generate(xic *XicGenerator) *XMLBuilder {
 			p.Root.Ele("variable", attrs)
 
 			xsig.Ele("io", map[string]string{
-				"name":  name,
-				"type":  func() string { if reference { return "pointer" } else { return "input" } }(),
-				"ctype": func() string { if desc.IsSigned { return "int" } else { return "unsigned" } }(),
+				"name": name,
+				"type": func() string {
+					if reference {
+						return "pointer"
+					} else {
+						return "input"
+					}
+				}(),
+				"ctype": func() string {
+					if desc.IsSigned {
+						return "int"
+					} else {
+						return "unsigned"
+					}
+				}(),
 				"width": uint32Str(desc.Width),
 			})
 		}
@@ -177,9 +189,15 @@ func (p *HlsProcGen) Generate(xic *XicGenerator) *XMLBuilder {
 
 	if !p.AsModule && p.ReturnDesc != nil {
 		xsig.Ele("io", map[string]string{
-			"name":  "r_e_t_u_r_n",
-			"type":  "return",
-			"ctype": func() string { if p.ReturnDesc.IsSigned { return "int" } else { return "unsigned" } }(),
+			"name": "r_e_t_u_r_n",
+			"type": "return",
+			"ctype": func() string {
+				if p.ReturnDesc.IsSigned {
+					return "int"
+				} else {
+					return "unsigned"
+				}
+			}(),
 			"width": uint32Str(p.ReturnDesc.Width),
 		})
 	}
@@ -292,21 +310,25 @@ func (gen *HlsProcGen) emitStatement(node *ast.Node, xout *XMLBuilder) {
 			"value": "32",
 		})
 
-		breakCond := gen.buildCondition(stmt.Expression, true, xbody)
+		xcond.Ele("true", nil).Ele("const", map[string]string{
+			"value":  "1",
+			"width":  "1",
+			"signed": "false",
+		})
 
-		if breakCond != "" {
-			xcond.Ele("true", nil).Ele("const", map[string]string{
-				"value":  "1",
-				"width":  "1",
-				"signed": "false",
-			})
+		if cond, ok := gen.conditionValue(stmt.Expression); ok {
+			if cond {
+				// infinite loop
+			} else {
+				// never loop
+				xloop.Delete()
+				return
+			}
+		} else {
+			breakCond := gen.buildCondition(stmt.Expression, true, xbody)
 			xbody.Ele("break", map[string]string{
 				"cond": breakCond,
 			})
-		} else {
-			// Early return condition
-			xloop.Delete()
-			return
 		}
 
 		gen.emitStatement(stmt.Statement, xbody)
@@ -325,7 +347,7 @@ func (gen *HlsProcGen) emitStatement(node *ast.Node, xout *XMLBuilder) {
 		if stmt.ElseStatement != nil {
 			xelse := xif.Ele("else", nil)
 			setNodeLoc(stmt.ElseStatement, xelse)
-			gen.emitStatement(stmt.ElseStatement, xelse)	
+			gen.emitStatement(stmt.ElseStatement, xelse)
 		}
 
 	case ast.KindReturnStatement:
@@ -373,7 +395,7 @@ func (gen *HlsProcGen) markEmitExpression(expr *ast.Node, xout *XMLBuilder) {
 	fold := gen.markExpression(expr)
 	if fold == 0 {
 		gen.emitExpression(expr, nil, xout)
-		} else {
+	} else {
 		gen.foldExpression(expr, xout)
 	}
 }
@@ -392,13 +414,13 @@ func (gen *HlsProcGen) markExpression(expr *ast.Node) int {
 		}
 
 	case ast.KindPrefixUnaryExpression:
-			unary := expr.AsPrefixUnaryExpression()
-			if unary.Operator == ast.KindPlusToken || unary.Operator == ast.KindMinusToken {
-				a := gen.markExpression(unary.Operand)
-				if a > 0 {
-					fold = a + 1
-				}
+		unary := expr.AsPrefixUnaryExpression()
+		if unary.Operator == ast.KindPlusToken || unary.Operator == ast.KindMinusToken {
+			a := gen.markExpression(unary.Operand)
+			if a > 0 {
+				fold = a + 1
 			}
+		}
 
 	case ast.KindBinaryExpression:
 		binExpr := expr.AsBinaryExpression()
@@ -613,26 +635,26 @@ func (h *HlsProcGen) emitRelationalOp(op ast.Kind, left, right *ast.Expression, 
 	rdesc := checker.RequireTypeDescriptor(h.Checker, rt, right)
 
 	if ldesc.IsSigned == rdesc.IsSigned {
-			isSigned = ldesc.IsSigned
-			if ldesc.Width >= rdesc.Width {
-					width = ldesc.Width
-			} else {
-					width = rdesc.Width
-			}
+		isSigned = ldesc.IsSigned
+		if ldesc.Width >= rdesc.Width {
+			width = ldesc.Width
+		} else {
+			width = rdesc.Width
+		}
 	} else if ldesc.IsSigned {
-			isSigned = true
-			if ldesc.Width >= rdesc.Width {
-					width = ldesc.Width
-			} else {
-					width = rdesc.Width + 1
-			}
+		isSigned = true
+		if ldesc.Width >= rdesc.Width {
+			width = ldesc.Width
+		} else {
+			width = rdesc.Width + 1
+		}
 	} else {
-			isSigned = true
-			if ldesc.Width >= rdesc.Width {
-					width = ldesc.Width + 1
-			} else {
-					width = rdesc.Width
-			}
+		isSigned = true
+		if ldesc.Width >= rdesc.Width {
+			width = ldesc.Width + 1
+		} else {
+			width = rdesc.Width
+		}
 	}
 
 	desc := checker.TypeDescriptor{
@@ -649,23 +671,23 @@ func (h *HlsProcGen) emitRelationalOp(op ast.Kind, left, right *ast.Expression, 
 
 func (h *HlsProcGen) emitExpressionForDesc(expr *ast.Expression, exprT *checker.Type, desc *checker.TypeDescriptor, xout *XMLBuilder) {
 	if ast.IsLiteralExpression(expr) {
-			h.emitLiteral(expr, desc, xout)
-			return
+		h.emitLiteral(expr, desc, xout)
+		return
 	}
 
 	sdesc := checker.RequireTypeDescriptor(h.Checker, exprT, expr)
 
 	if ast.IsIdentifier(expr) {
-			_, value := checker.ResolveIdentifierExpr(h.Checker, expr)
-			if value != nil {
-					if canOverflow(sdesc, desc) {
-							xout = castIfNeededDesc(sdesc, desc, xout)
-							xout.Ele("const", mergeMaps(map[string]string{"value": valueString(value)}, genConstype(sdesc)))
-					} else {
-							xout.Ele("const", mergeMaps(map[string]string{"value": valueString(value)}, genConstype(desc)))
-					}
-					return
+		_, value := checker.ResolveIdentifierExpr(h.Checker, expr)
+		if value != nil {
+			if canOverflow(sdesc, desc) {
+				xout = castIfNeededDesc(sdesc, desc, xout)
+				xout.Ele("const", mergeMaps(map[string]string{"value": valueString(value)}, genConstype(sdesc)))
+			} else {
+				xout.Ele("const", mergeMaps(map[string]string{"value": valueString(value)}, genConstype(desc)))
 			}
+			return
+		}
 	}
 
 	xout = castIfNeededDesc(sdesc, desc, xout)
@@ -676,148 +698,158 @@ func (h *HlsProcGen) emitCallExpression(expr *ast.CallExpression, lhs *ast.Array
 	fun := expr.Expression
 
 	if ast.IsIdentifier(fun) {
-			ident := fun.AsIdentifier()
-			name := ident.Text
-			if castFunctionRe.MatchString(name) {
-					arg := expr.Arguments.Nodes[0]
-					at := h.Checker.GetTypeAtLocation(arg)
-					sdesc := checker.RequireTypeDescriptor(h.Checker, at, nil)
-					tdesc := parseTypeSpec(name)
-					xml := castIfNeededDesc(sdesc, tdesc, xout)
-					h.emitExpression(arg, at, xml)
-					return
+		ident := fun.AsIdentifier()
+		name := ident.Text
+		if castFunctionRe.MatchString(name) {
+			arg := expr.Arguments.Nodes[0]
+			at := h.Checker.GetTypeAtLocation(arg)
+			sdesc := checker.RequireTypeDescriptor(h.Checker, at, nil)
+			tdesc := parseTypeSpec(name)
+			xml := castIfNeededDesc(sdesc, tdesc, xout)
+			h.emitExpression(arg, at, xml)
+			return
+		}
+
+		analysis := GetFunctionIdentDescriptor(ident, h.Checker)
+		if analysis != nil {
+			var rt *checker.Type
+
+			if lhs != nil {
+				newLhs := analysis.FilterCallerLhs(lhs.Elements.Nodes)
+				if len(newLhs) > 1 {
+					panic(fmt.Sprintf("Failed to reduce function return: %s", analysis.MethodName))
+				} else if len(newLhs) == 1 {
+					rt = h.Checker.GetTypeAtLocation(newLhs[0])
+					xout = h.emitAssignment(newLhs[0], xout)
+				}
 			}
 
-			analysis := GetFunctionIdentDescriptor(ident, h.Checker)
-			if analysis != nil {
-					var rt *checker.Type
+			attrs := map[string]string{"proc": ident.Text}
+			argTypes := checker.GetDeclarationParameterTypes(h.Checker, analysis.Declaration)
 
-					if lhs != nil {
-							newLhs := analysis.FilterCallerLhs(lhs.Elements.Nodes)
-							if len(newLhs) > 1 {
-									panic(fmt.Sprintf("Failed to reduce function return: %s", analysis.MethodName))
-							} else if len(newLhs) == 1 {
-									rt = h.Checker.GetTypeAtLocation(newLhs[0])
-									xout = h.emitAssignment(newLhs[0], xout)
-							}
-					}
-
-					attrs := map[string]string{"proc": ident.Text}
-					argTypes := checker.GetDeclarationParameterTypes(h.Checker, analysis.Declaration)
-
-					if rt != nil {
-							rtDesc := checker.RequireTypeDescriptor(h.Checker, rt, nil)
-							attrs["signed"] = boolStr(rtDesc.IsSigned)
-							argTypes = append(argTypes, rt)
-					}
-
-					attrs["type"] = genFuncType(expr.Arguments.Nodes, argTypes, h.Checker)
-
-					xml := xout.Ele("call", attrs)
-					for idx, arg := range expr.Arguments.Nodes {
-							h.emitExpression(arg, argTypes[idx], xml)
-					}
-			} else {
-					panic(fmt.Sprintf("Undefined function: %s", ident.Text))
+			if rt != nil {
+				rtDesc := checker.RequireTypeDescriptor(h.Checker, rt, nil)
+				attrs["signed"] = boolStr(rtDesc.IsSigned)
+				argTypes = append(argTypes, rt)
 			}
+
+			attrs["type"] = genFuncType(expr.Arguments.Nodes, argTypes, h.Checker)
+
+			xml := xout.Ele("call", attrs)
+			for idx, arg := range expr.Arguments.Nodes {
+				h.emitExpression(arg, argTypes[idx], xml)
+			}
+		} else {
+			panic(fmt.Sprintf("Undefined function: %s", ident.Text))
+		}
 	} else if ast.IsPropertyAccessExpression(fun) {
-			propAcc := fun.AsPropertyAccessExpression()
-			op := propAcc.Name().Text()
-			if ast.IsIdentifier(propAcc.Expression) {
-					obj := propAcc.Expression.AsIdentifier()
-					name := obj.Text
-					xml := xout.Ele("exec", map[string]string{"op": op})
-					xml.Ele("var", map[string]string{"name": name})
-					for _, arg := range expr.Arguments.Nodes {
-							h.emitExpression(arg, nil, xml)
-					}
-			} else {
-					panic("Object of property access is not an identifier")
+		propAcc := fun.AsPropertyAccessExpression()
+		op := propAcc.Name().Text()
+		if ast.IsIdentifier(propAcc.Expression) {
+			obj := propAcc.Expression.AsIdentifier()
+			name := obj.Text
+			xml := xout.Ele("exec", map[string]string{"op": op})
+			xml.Ele("var", map[string]string{"name": name})
+			for _, arg := range expr.Arguments.Nodes {
+				h.emitExpression(arg, nil, xml)
 			}
+		} else {
+			panic("Object of property access is not an identifier")
+		}
 	} else {
-			panic("Unsupported function type")
+		panic("Unsupported function type")
 	}
 }
+
 func (h *HlsProcGen) emitLiteral(expr *ast.LiteralExpression, desc *checker.TypeDescriptor, xout *XMLBuilder) {
 	xout.Ele("const", mergeMaps(map[string]string{
-			"value": expr.Text(),
+		"value": expr.Text(),
 	}, genConstype(desc)))
 }
 
 func (h *HlsProcGen) emitAssignment(lhs *ast.Expression, xout *XMLBuilder) *XMLBuilder {
 	switch lhs.Kind {
 	case ast.KindIdentifier:
-			sym := h.Checker.GetSymbolAtLocation(lhs)
-			name := h.Symtab.GetName(sym)
-			xa := xout.Ele("assign", map[string]string{
-					"name": name,
-			})
-			setNodeLoc(lhs, xa)
-			return xa
+		sym := h.Checker.GetSymbolAtLocation(lhs)
+		name := h.Symtab.GetName(sym)
+		xa := xout.Ele("assign", map[string]string{
+			"name": name,
+		})
+		setNodeLoc(lhs, xa)
+		return xa
 	case ast.KindElementAccessExpression:
-			store := xout.Ele("store", nil)
-			setNodeLoc(lhs, store)
-			h.emitExpression(lhs, h.Checker.GetTypeAtLocation(lhs), store)
-			return store
+		store := xout.Ele("store", nil)
+		setNodeLoc(lhs, store)
+		h.emitExpression(lhs, h.Checker.GetTypeAtLocation(lhs), store)
+		return store
 	default:
-			panic("Unexpected LHS: " + lhs.Kind.String())
+		panic("Unexpected LHS: " + lhs.Kind.String())
 	}
 }
 
 func (h *HlsProcGen) emitStatementVariables(stmt *ast.Statement, xout *XMLBuilder) {
 	switch stmt.Kind {
 	case ast.KindVariableStatement:
-			h.emitVariableDeclarationListVariables(stmt.AsVariableStatement().DeclarationList.AsVariableDeclarationList(), xout)
+		h.emitVariableDeclarationListVariables(stmt.AsVariableStatement().DeclarationList.AsVariableDeclarationList(), xout)
 	case ast.KindForStatement:
-			f := stmt.AsForStatement()
-			if f.Initializer != nil {
-					if ast.IsVariableDeclarationList(f.Initializer) {
-							h.emitVariableDeclarationListVariables(f.Initializer.AsVariableDeclarationList(), xout)
-					}
+		f := stmt.AsForStatement()
+		if f.Initializer != nil {
+			if ast.IsVariableDeclarationList(f.Initializer) {
+				h.emitVariableDeclarationListVariables(f.Initializer.AsVariableDeclarationList(), xout)
 			}
-			h.emitStatementVariables(f.Statement, xout)
+		}
+		h.emitStatementVariables(f.Statement, xout)
 	case ast.KindForInStatement, ast.KindForOfStatement:
-			f := stmt.AsForInOrOfStatement()
-			if f.Initializer != nil {
-				if ast.IsVariableDeclarationList(f.Initializer) {
-					h.emitVariableDeclarationListVariables(f.Initializer.AsVariableDeclarationList(), xout)
-				}
+		f := stmt.AsForInOrOfStatement()
+		if f.Initializer != nil {
+			if ast.IsVariableDeclarationList(f.Initializer) {
+				h.emitVariableDeclarationListVariables(f.Initializer.AsVariableDeclarationList(), xout)
 			}
-			h.emitStatementVariables(f.Statement, xout)
+		}
+		h.emitStatementVariables(f.Statement, xout)
 	case ast.KindIfStatement:
-			h.emitStatementVariables(stmt.AsIfStatement().ThenStatement, xout)
-			if stmt.AsIfStatement().ElseStatement != nil {
-					h.emitStatementVariables(stmt.AsIfStatement().ElseStatement, xout)
-			}
+		h.emitStatementVariables(stmt.AsIfStatement().ThenStatement, xout)
+		if stmt.AsIfStatement().ElseStatement != nil {
+			h.emitStatementVariables(stmt.AsIfStatement().ElseStatement, xout)
+		}
 	case ast.KindBlock:
-			h.emitBlockVariables(stmt.AsBlock(), xout)
+		h.emitBlockVariables(stmt.AsBlock(), xout)
 	}
 }
 
 func (h *HlsProcGen) emitBlockVariables(block *ast.Block, xout *XMLBuilder) {
 	for _, stmt := range block.Statements.Nodes {
-			h.emitStatementVariables(stmt, xout)
+		h.emitStatementVariables(stmt, xout)
 	}
 }
 
 func (h *HlsProcGen) emitVariableDeclarationListVariables(lst *ast.VariableDeclarationList, xout *XMLBuilder) {
 	for _, decl := range lst.Declarations.Nodes {
-			name := h.Symtab.GenName(decl.AsVariableDeclaration())
-			t := h.Checker.GetTypeAtLocation(decl)
-			info := checker.RequireTypeDescriptor(h.Checker, t, decl.Initializer())
-			tag := "variable"
-			if checker.IsArrayType(h.Checker, t) {
-					tag = "memory"
-			}
-			h.LastVar = xout.Ele(tag, mergeMaps(map[string]string{
-					"name": name,
-			}, genVarType(info)))
-			if tag == "memory" && decl.Initializer() != nil && !checker.IsArrayConstructor(decl.Initializer()) {
-					data := []string{}
-					extractArrayData(decl.Initializer(), h.Checker, data)
-					h.MemoryInit[name] = data
-			}
+		name := h.Symtab.GenName(decl.AsVariableDeclaration())
+		t := h.Checker.GetTypeAtLocation(decl)
+		info := checker.RequireTypeDescriptor(h.Checker, t, decl.Initializer())
+		tag := "variable"
+		if checker.IsArrayType(h.Checker, t) {
+			tag = "memory"
+		}
+		h.LastVar = xout.Ele(tag, mergeMaps(map[string]string{
+			"name": name,
+		}, genVarType(info)))
+		if tag == "memory" && decl.Initializer() != nil && !checker.IsArrayConstructor(decl.Initializer()) {
+			data := []string{}
+			extractArrayData(decl.Initializer(), h.Checker, data)
+			h.MemoryInit[name] = data
+		}
 	}
+}
+
+func (h *HlsProcGen) conditionValue(expr *ast.Node) (bool, bool) {
+	if checker.IsConstExpression(expr) {
+		cond := checker.GetConstExpression(expr)
+		v, ok := cond.(bool)
+		return v, ok
+	}
+	return false, false
 }
 
 func (h *HlsProcGen) buildCondition(expr *ast.Node, inverted bool, xout *XMLBuilder) string {
@@ -843,19 +875,9 @@ func (h *HlsProcGen) buildCondition(expr *ast.Node, inverted bool, xout *XMLBuil
 	if expr.Kind == ast.KindIdentifier {
 		sym := h.Checker.GetSymbolAtLocation(expr)
 		return prefix + h.Symtab.GetName(sym)
-	} else if checker.IsConstExpression(expr) {
-		cond := checker.GetConstExpression(expr)
-		if negate {
-			if b, ok := cond.(bool); ok {
-				return valueString(!b)
-			} else {
-				return prefix + valueString(cond)
-			}
-		}
-		return valueString(cond)
 	}
 
-	tmp := h.newVar("c_o_n_d", &checker.TypeDescriptor{ IsSigned: false, Width: 1 })
+	tmp := h.newVar("c_o_n_d", &checker.TypeDescriptor{IsSigned: false, Width: 1})
 	assign := xout.Ele("assign", map[string]string{"name": tmp})
 	h.markEmitExpression(expr, assign)
 	return prefix + tmp
@@ -870,10 +892,10 @@ func (h *HlsProcGen) castIfNeeded(src *checker.Type, dst *checker.Type, xout *XM
 func (h *HlsProcGen) newVar(basename string, info *checker.TypeDescriptor) string {
 	name := h.Symtab.GenNewName(basename)
 	xml := createXml().Ele("variable", mergeMaps(map[string]string{
-			"name": name,
+		"name": name,
 	}, genVarType(info)))
 	if h.LastVar != nil {
-			h.Root.InsertAfter(xml, h.LastVar)
+		h.Root.InsertAfter(xml, h.LastVar)
 	} else {
 		h.Root.Append(xml)
 	}
@@ -883,9 +905,9 @@ func (h *HlsProcGen) newVar(basename string, info *checker.TypeDescriptor) strin
 
 func canOverflow(si, di *checker.TypeDescriptor) bool {
 	if si.IsSigned == di.IsSigned {
-			return di.Width < si.Width
+		return di.Width < si.Width
 	} else if si.IsSigned {
-			return di.Width < si.Width
+		return di.Width < si.Width
 	}
 	// casting unsigned to signed
 	return di.Width <= si.Width
@@ -893,39 +915,39 @@ func canOverflow(si, di *checker.TypeDescriptor) bool {
 
 func castIfNeededDesc(si, di *checker.TypeDescriptor, xout *XMLBuilder) *XMLBuilder {
 	if si.IsSigned != di.IsSigned || si.Width != di.Width {
-			return xout.Ele("cast", map[string]string{
-					"float": "0", 
-					"fromfloat": "0", 
-					"signed": fmt.Sprintf("%v", si.IsSigned),
-					"tosigned": fmt.Sprintf("%v", di.IsSigned),
-					"width": fmt.Sprintf("%d", di.Width),
-			})
+		return xout.Ele("cast", map[string]string{
+			"float":     "0",
+			"fromfloat": "0",
+			"signed":    fmt.Sprintf("%v", si.IsSigned),
+			"tosigned":  fmt.Sprintf("%v", di.IsSigned),
+			"width":     fmt.Sprintf("%d", di.Width),
+		})
 	}
 	return xout
 }
 
 func extractArrayData(expr *ast.Node, c *checker.Checker, data []string) {
 	if expr.Kind == ast.KindArrayLiteralExpression {
-			arrayExpr := expr.AsArrayLiteralExpression()  // Assume AsArrayLiteralExpression is a helper
-			if len(arrayExpr.Elements.Nodes) > 0 {
-					firstElem := arrayExpr.Elements.Nodes[0]
-					if firstElem.Kind == ast.KindArrayLiteralExpression {
-							for _, a := range arrayExpr.Elements.Nodes {
-									extractArrayData(a, c, data)
-							}
-					} else {
-							for _, a := range arrayExpr.Elements.Nodes {
-									v := checker.TsEvaluateExpr(a, c)
-									if v == nil {
-											fmt.Println(a)
-											assert(false, "Non-constant array initializer")
-									}
-									data = append(data, valueString(v))
-							}
+		arrayExpr := expr.AsArrayLiteralExpression() // Assume AsArrayLiteralExpression is a helper
+		if len(arrayExpr.Elements.Nodes) > 0 {
+			firstElem := arrayExpr.Elements.Nodes[0]
+			if firstElem.Kind == ast.KindArrayLiteralExpression {
+				for _, a := range arrayExpr.Elements.Nodes {
+					extractArrayData(a, c, data)
+				}
+			} else {
+				for _, a := range arrayExpr.Elements.Nodes {
+					v := checker.TsEvaluateExpr(a, c)
+					if v == nil {
+						fmt.Println(a)
+						assert(false, "Non-constant array initializer")
 					}
+					data = append(data, valueString(v))
+				}
 			}
+		}
 	} else {
-			assert(false, "Unexpected array initializer")
+		assert(false, "Unexpected array initializer")
 	}
 }
 
@@ -963,23 +985,23 @@ func genFuncType(actuals []*ast.Node, argTypes []*checker.Type, tc *checker.Chec
 
 func genOpType(desc *checker.TypeDescriptor) map[string]string {
 	return map[string]string{
-		"signed":   boolStr(desc.IsSigned),
-		"float":    "0",
+		"signed": boolStr(desc.IsSigned),
+		"float":  "0",
 	}
 }
 
 func genConstype(desc *checker.TypeDescriptor) map[string]string {
 	return map[string]string{
-		"signed":   boolStr(desc.IsSigned),
-		"width":    uint32Str(desc.Width),
+		"signed": boolStr(desc.IsSigned),
+		"width":  uint32Str(desc.Width),
 	}
 }
 
 func genVarType(desc *checker.TypeDescriptor) map[string]string {
 	obj := map[string]string{
-		"kind":     "int",
-		"signed":   boolStr(desc.IsSigned),
-		"width":    uint32Str(desc.Width),
+		"kind":   "int",
+		"signed": boolStr(desc.IsSigned),
+		"width":  uint32Str(desc.Width),
 	}
 
 	if desc.Shape != nil {

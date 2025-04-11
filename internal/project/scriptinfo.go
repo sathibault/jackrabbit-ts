@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/jackrabbit"
 	"github.com/microsoft/typescript-go/internal/ls"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
@@ -131,6 +132,17 @@ func (s *ScriptInfo) setText(newText string) {
 	s.text = newText
 	s.version++
 	s.lineMap = nil
+}
+
+// for synthesis
+func (s *ScriptInfo) applyChangesToProjects(changes []ls.TextChange) {
+	edits := make([]jackrabbit.TextEdit, 0, len(changes))
+	for _, change := range changes {
+		edits = append(edits, jackrabbit.NewTextEdit(change.Pos(), change.End(), len(change.NewText)))
+	}
+	for _, project := range s.containingProjects {
+		project.applyChangesToFile(s.path, edits)
+	}
 }
 
 func (s *ScriptInfo) markContainingProjectsAsDirty() {

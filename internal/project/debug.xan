@@ -4,33 +4,48 @@
   <file name="logic">
     <config name="logic">
       <signature spec="_1" class="sayHello"/>
-      <process name="sayHello_" class="sayHello" spec="_1" type="hp" loc="fpga0"/>
+      <process spec="_1" type="hp" loc="fpga0" name="sayHello_" class="sayHello"/>
     </config>
     <proc name="sayHello" spec="_1" type="void" srcpos="19">
-      <variable name="x" signed="false" width="8" kind="int" usedwidth="3"/>
+      <variable kind="int" signed="false" width="8" name="x" usedwidth="3"/>
       <variable name="y" kind="int" signed="false" width="16"/>
+      <variable kind="int" signed="false" width="32" name="acc"/>
+      <memory width="32" depth="16" bounds="16" name="buffer" signed="false" res="dualsync"/>
       <option name="defaultDelay" value="32" iid="i1"/>
-      <assign name="x" srcpos="26" iid="i2">
+      <assign name="x" srcpos="20" iid="i2">
         <const signed="false" width="8" value="3" iid="i3"/>
       </assign>
-      <assign name="y" srcpos="46" iid="i4">
+      <assign name="y" srcpos="40" iid="i4">
         <const value="0" signed="false" width="16" iid="i5"/>
       </assign>
-      <loop srcpos="61">
+      <assign name="acc" srcpos="61" iid="i6">
+        <const value="0" width="32" signed="false" iid="i7"/>
+      </assign>
+      <loop srcpos="118">
         <cond>
-          <true iid="i11">
-            <const value="1" width="1" signed="false" iid="i12"/>
+          <true iid="i17">
+            <const signed="false" value="1" width="1" iid="i18"/>
           </true>
         </cond>
         <body>
-          <option name="stageDelay" value="32" iid="i6"/>
-          <break cond="false" iid="i7"/>
-          <assign name="y" srcpos="78" iid="i8">
-            <binop signed="false" op="+" float="0" iid="i9" signedop="0" w1="16" w2="16" width="16">
+          <option name="stageDelay" value="32" iid="i8"/>
+          <assign name="y" srcpos="135" iid="i9">
+            <binop op="+" float="0" signed="false" iid="i10" signedop="0" w1="16" w2="16" width="16">
               <var name="y"/>
-              <cast float="0" fromfloat="0" signed="false" tosigned="false" width="16" iid="i10" w1="8">
+              <cast float="0" fromfloat="0" signed="false" tosigned="false" width="16" iid="i11" w1="8">
                 <var name="x"/>
               </cast>
+            </binop>
+          </assign>
+          <assign name="acc" srcpos="150" iid="i12">
+            <binop op="+" float="0" signed="false" iid="i13" signedop="0" w1="32" w2="32" width="32">
+              <var name="acc"/>
+              <arrayref tsize="32" iid="i14" width="32" port="1" portmode="r">
+                <const offset="0" sym="buffer" iid="i15"/>
+                <cast signed="false" tosigned="false" width="4" float="0" fromfloat="0" iid="i16" w1="4">
+                  <var name="y" narrow="4"/>
+                </cast>
+              </arrayref>
             </binop>
           </assign>
         </body>

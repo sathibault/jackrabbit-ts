@@ -42,6 +42,10 @@
             {
                 "command": "typescript-go.restart",
                 "title": "TypeScript Go: Restart Language Server"
+            },
+            {
+                "command": "typescript-go.hlsAnnotate",
+                "title": "HLS Annotations"
             }
         ],
         "menus": {

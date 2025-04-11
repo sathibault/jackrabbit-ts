@@ -10,6 +10,7 @@ import "C"
 import (
 	"fmt"
 	"io"
+	"os"
 	"unsafe"
 )
 
@@ -19,9 +20,11 @@ type SmContext struct {
 }
 
 type HlsBlockSummary struct {
-	BlockNo uint
-	Position uint
-	Stages uint
+	Position int
+	End      int
+	BlockNo  uint
+	Pipeline bool
+	Stages   uint
 }
 
 func CreateSmContext(path string) *SmContext {
@@ -39,6 +42,8 @@ func CreateSmContext(path string) *SmContext {
 
 func (sm *SmContext) Generate(proc *HlsProcGen) {
 	sm.Xic.Generate(proc)
+	sm.Xic.Dump(os.Stderr)
+	os.Stderr.Sync()
 	C.EcSetRoot(sm.api, sm.Xic.root.xml)
 }
 
@@ -53,20 +58,29 @@ func (sm *SmContext) Analysis() []HlsBlockSummary {
 
 	n := uint(c_count)
 	c_slice := (*[256]C.struct_block_detail_s)(unsafe.Pointer(c_detail))[:n]
-	detail := make([]HlsBlockSummary,n)
+	detail := make([]HlsBlockSummary, n)
 	for i := uint(0); i < n; i++ {
 		detail[i].BlockNo = uint(c_slice[i].bno)
-		detail[i].Position = uint(c_slice[i].pos)
+		detail[i].Position = int(c_slice[i].pos)
+		detail[i].End = int(c_slice[i].end)
+		detail[i].Pipeline = c_slice[i].pipeline != 0
 		detail[i].Stages = uint(c_slice[i].stages)
 	}
 	return detail
 }
 
+func (sm *SmContext) RenderBlock(no uint) string {
+	c_html := C.EcRenderBlock(sm.api, C.uint(no))
+	defer C.free(unsafe.Pointer(c_html))
+	html := C.GoString(c_html)
+	return html
+}
+
 type XicGenerator struct {
-	root *XMLBuilder
-	file *XMLBuilder
-	config *XMLBuilder
-	target *XMLBuilder
+	root       *XMLBuilder
+	file       *XMLBuilder
+	config     *XMLBuilder
+	target     *XMLBuilder
 	connectors *Connectors
 }
 
@@ -88,16 +102,16 @@ func newXicGenerator() *XicGenerator {
 	})
 
 	arch.Ele("pe", map[string]string{
-		"name": "fpga0",
-		"target": "VHDL/target.xml",
+		"name":       "fpga0",
+		"target":     "VHDL/target.xml",
 		"technology": "VHDL/Unknown/unknown.xml",
 	})
 
 	return &XicGenerator{
-		root: root,
-		file: file,
-		config: config,
-		target: target,
+		root:       root,
+		file:       file,
+		config:     config,
+		target:     target,
 		connectors: NewConnectors(),
 	}
 }
@@ -112,7 +126,7 @@ func (g *XicGenerator) Dump(out io.Writer) {
 }
 
 type XMLBuilder struct {
-	xml unsafe.Pointer
+	xml    unsafe.Pointer
 	Parent *XMLBuilder
 }
 
@@ -170,7 +184,6 @@ func (x *XMLBuilder) Delete() {
 	}
 	x.Parent = nil
 }
-
 
 func (x *XMLBuilder) String() string {
 	s := C.XmlString(x.xml)

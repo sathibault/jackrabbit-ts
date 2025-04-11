@@ -234,8 +234,11 @@ func TestService(t *testing.T) {
 		"/home/projects/TS/p1/src/index.ts": `function sayHello(){
   var x: uint8 = 3;
   var y: uint16 = 0;
+  var acc: uint32 = 0;
+  var buffer = Array<uint32>(16);
   while (true) {
     y = y + x;
+    acc = acc + buffer[y];
   }
 }`,
 	}
