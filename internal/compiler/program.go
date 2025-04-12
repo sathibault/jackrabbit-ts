@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"os"
 	"slices"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/compiler/diagnostics"
 	"github.com/microsoft/typescript-go/internal/compiler/module"
 	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/jackrabbit"
 	"github.com/microsoft/typescript-go/internal/parser"
 	"github.com/microsoft/typescript-go/internal/printer"
 	"github.com/microsoft/typescript-go/internal/scanner"
@@ -246,6 +248,18 @@ func (p *Program) GetTypeCheckers() []*checker.Checker {
 func (p *Program) GetTypeCheckerForFile(file *ast.SourceFile) *checker.Checker {
 	p.createCheckers()
 	return p.checkersByFile[file]
+}
+
+func (p *Program) GlobalAnalysis() {
+	fmt.Fprintf(os.Stderr, "Global analysis pass 1\n")
+	for file, checker := range p.checkersByFile {
+		jackrabbit.AnalyzeSourceFile(file, checker)
+	}
+	fmt.Fprintf(os.Stderr, "Global analysis pass 2\n")
+	for file, checker := range p.checkersByFile {
+		jackrabbit.AnalyzeSourcePass2(file, checker)
+	}
+	jackrabbit.FinalizeAnalysis()
 }
 
 func (p *Program) GetResolvedModule(file *ast.SourceFile, moduleReference string) *ast.SourceFile {

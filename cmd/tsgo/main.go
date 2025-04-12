@@ -253,6 +253,10 @@ func runMain() int {
 		listFiles(program)
 	}
 
+	if len(diagnostics) == 0 {
+		program.GlobalAnalysis()
+	}
+
 	var stats table
 
 	stats.add("Files", len(program.SourceFiles()))

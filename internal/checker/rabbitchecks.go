@@ -46,11 +46,30 @@ func qualifiedName(sym *ast.Symbol, checker *Checker) *string {
 	return &name
 }
 
-func QualifiedDeclName(decl *ast.Declaration) *string {
+func QualifiedClassName(decl *ast.ClassDeclaration) *string {
 	if decl.Name() != nil {
 		if ast.IsIdentifier(decl.Name()) {
 			name := decl.Name().AsIdentifier().Text
-			cur := decl
+			cur := decl.AsNode()
+			for cur.Parent != nil {
+				cur = cur.Parent
+			}
+			if ast.IsSourceFile(cur) {
+				sourceFile := cur.AsSourceFile()
+				name = fmt.Sprintf("%s::%s", sourceFile.FileName(), name)
+			}
+			return &name
+		}
+	}
+	fmt.Fprintln(os.Stderr, decl, decl.Name().Kind.String())
+	panic("invalid declaration name")
+}
+
+func QualifiedFuncName(decl *ast.FunctionDeclaration) *string {
+	if decl.Name() != nil {
+		if ast.IsIdentifier(decl.Name()) {
+			name := decl.Name().AsIdentifier().Text
+			cur := decl.AsNode()
 			for cur.Parent != nil {
 				cur = cur.Parent
 			}
@@ -71,8 +90,8 @@ type TypeDescriptor struct {
 	Shape    []uint32
 }
 
-func GetDeclarationParameterTypes(c *Checker, node *ast.FunctionDeclaration) []*Type {
-	s := c.getSignatureFromDeclaration(node.AsNode())
+func GetDeclarationParameterTypes(c *Checker, node *ast.Node) []*Type {
+	s := c.getSignatureFromDeclaration(node)
 	types := make([]*Type, 0, len(s.parameters))
 	for _, p := range s.parameters {
 		t := c.getTypeOfSymbol(p)
@@ -188,7 +207,6 @@ func ArrayExprShape(expr *ast.Expression, tc *Checker) []uint32 {
 				arg := call.Arguments.Nodes[0]
 				val := TsEvaluateExpr(arg, tc)
 				if val != nil {
-					fmt.Fprintln(os.Stderr, "SHAPE", val)
 					if x, ok := NumberToUint32(val); ok {
 						shape = append(shape, x)
 						return shape
@@ -263,6 +281,13 @@ func GetConstExpression(expr *ast.Node) any {
 	}
 }
 
+func GetDealiasedSymbol(c *Checker, sym *ast.Symbol) *ast.Symbol {
+	if sym != nil && (sym.Flags&ast.SymbolFlagsAlias) != 0 {
+		sym = c.getImmediateAliasedSymbol(sym)
+	}
+	return sym
+}
+
 func ResolveIdentifierExpr(c *Checker, expr *ast.Node) (*ast.Symbol, any) {
 	sym := c.GetSymbolAtLocation(expr)
 	assert(sym != nil, "Expected symbol")
@@ -300,20 +325,22 @@ func ResolveIdentifierExpr(c *Checker, expr *ast.Node) (*ast.Symbol, any) {
 	return sym, nil
 }
 
-func TsEvaluateExpr(expr *ast.Expression, checker *Checker) any {
+func TsEvaluateExpr(expr *ast.Expression, c *Checker) any {
 	evalEntity := func(expr *ast.Node, location *ast.Node) evaluator.Result {
-		ident := expr.AsIdentifier()
-		sym := ident.Symbol()
-		if (sym.Flags & ast.SymbolFlagsAlias) != 0 {
-			sym = checker.getImmediateAliasedSymbol(sym)
-		}
-		if len(sym.Declarations) > 0 {
-			decl := sym.Declarations[0]
-			if ast.IsVariableDeclaration(decl) {
-				if ((decl.Flags & ast.NodeFlagsConst) != 0) || (decl.Parent != nil && (decl.Parent.Flags&ast.NodeFlagsConst) != 0) {
-					if decl.Initializer() != nil {
-						val := TsEvaluateExpr(decl.Initializer(), checker)
-						return evaluator.Result{Value: val, IsSyntacticallyString: false, ResolvedOtherFiles: false, HasExternalReferences: false}
+		// node may be identitfier, element access, or property access
+		if ast.IsIdentifier(expr) {
+			sym := c.GetSymbolAtLocation(expr)
+			if (sym.Flags & ast.SymbolFlagsAlias) != 0 {
+				sym = c.getImmediateAliasedSymbol(sym)
+			}
+			if len(sym.Declarations) > 0 {
+				decl := sym.Declarations[0]
+				if ast.IsVariableDeclaration(decl) {
+					if ((decl.Flags & ast.NodeFlagsConst) != 0) || (decl.Parent != nil && (decl.Parent.Flags&ast.NodeFlagsConst) != 0) {
+						if decl.Initializer() != nil {
+							val := TsEvaluateExpr(decl.Initializer(), c)
+							return evaluator.Result{Value: val, IsSyntacticallyString: false, ResolvedOtherFiles: false, HasExternalReferences: false}
+						}
 					}
 				}
 			}
@@ -370,6 +397,10 @@ func IsObjectType(t *Type) bool {
 
 func IsTypeReference(t *Type) bool {
 	return t.objectFlags&ObjectFlagsReference != 0
+}
+
+func IsTupleType(tc *Checker, t *Type) bool {
+	return tc.isTupleLikeType(t)
 }
 
 func IsTypeReferenceOf(t *Type, name string) bool {

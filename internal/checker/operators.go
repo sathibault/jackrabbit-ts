@@ -82,11 +82,11 @@ func checkBinaryOpOverload(leftType *Type, left *ast.Node, operatorToken *ast.No
 	case ast.KindBarToken, ast.KindCaretToken, ast.KindAmpersandToken, ast.KindPlusToken, ast.KindMinusToken, ast.KindAsteriskToken, ast.KindSlashToken:
 		return usualBinaryOverload(leftType, left, rightType, right, false)
 
-	// case ast.KindHashPlusToken, ast.KindHashMinusToken:
-	// 	return usualBinaryOverload(leftType, left, rightType, right, true)
+	case ast.KindHashPlusToken, ast.KindHashMinusToken:
+		return usualBinaryOverload(leftType, left, rightType, right, true)
 
-	// case ast.KindHashAsteriskToken:
-	// 	return extendedMultiplyOverload(leftType, left, rightType, right)
+	case ast.KindHashAsteriskToken:
+		return extendedMultiplyOverload(leftType, left, rightType, right)
 
 	case ast.KindEqualsToken, ast.KindBarEqualsToken, ast.KindCaretEqualsToken, ast.KindAmpersandEqualsToken,
 		ast.KindPlusEqualsToken, ast.KindMinusEqualsToken, ast.KindAsteriskEqualsToken,

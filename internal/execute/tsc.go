@@ -216,6 +216,9 @@ func compileAndEmit(sys System, program *compiler.Program, reportDiagnostic diag
 	if len(diagnostics) == 0 {
 		diagnostics = append(diagnostics, program.GetSemanticDiagnostics(nil)...)
 	}
+
+	program.GlobalAnalysis()
+
 	// TODO: declaration diagnostics
 	if len(diagnostics) == 0 && options.NoEmit == core.TSTrue && (options.Declaration.IsTrue() && options.Composite.IsTrue()) {
 		return nil, nil, ExitStatusNotImplemented

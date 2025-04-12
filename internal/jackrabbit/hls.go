@@ -147,7 +147,7 @@ func (p *HlsProcGen) Generate(xic *XicGenerator) *XMLBuilder {
 				panic("unsupported parameter type for module")
 			}
 		} else {
-			reference := p.Descriptor.IsReferenceParameter(name, t)
+			reference := p.Descriptor.IsReferenceParameter(name, t, p.Checker)
 
 			attrs := map[string]string{
 				"name": name,
