@@ -25,6 +25,16 @@ func GetFunctionIdentDescriptor(fun *ast.Identifier, tc *checker.Checker) *Funct
 	return nil
 }
 
+func GetFunctionDeclDescriptor(fun *ast.FunctionDeclaration) *FunctionDescriptor {
+	qualified := checker.QualifiedFuncName(fun)
+	if qualified != nil {
+		if fd, ok := functionAnalysis[*qualified]; ok {
+			return fd
+		}
+	}
+	return nil
+}
+
 func getCalleeDescriptor(expr *ast.CallExpression, tc *checker.Checker) *FunctionDescriptor {
 	fun := expr.Expression
 	if ast.IsIdentifier(fun) {
@@ -92,6 +102,13 @@ func newFunctionDescriptor(name string, decl *ast.Node, tc *checker.Checker) *Fu
 	}
 
 	return fd
+}
+
+func (fd *FunctionDescriptor) UsedByType(t string) bool {
+	if fd.ModuleType != nil && *fd.ModuleType == t {
+		return true
+	}
+	return contains(fd.ModuleUsers, t)
 }
 
 func (fd *FunctionDescriptor) FinalizeAnalysis() {
@@ -164,18 +181,20 @@ func (fd *FunctionDescriptor) FlowAnalysis(checker *checker.Checker) {
 	runner.Run(body.AsBlock())
 	flow := runner.State
 
-	if retVal, ok := flow.Returned.(AbstractArrayValue); ok {
-		returns := map[string]int{}
-		for idx, elm := range retVal.Elements {
-			if id, ok := elm.(AbstractIdentifierValue); ok {
-				name := id.Identifier.Name().Text()
-				returns[name] = idx
+	if flow.Returned != nil {
+		if retVal, ok := flow.Returned.(*AbstractArrayValue); ok {
+			returns := map[string]int{}
+			for idx, elm := range retVal.Elements {
+				if id, ok := elm.(*AbstractIdentifierValue); ok {
+					name := id.Identifier.Text
+					returns[name] = idx
+				}
 			}
-		}
-		for _, param := range fd.Declaration.ParameterList().Nodes {
-			name := param.Name().Text()
-			if pos, ok := returns[name]; ok {
-				fd.Passthrough[name] = uint(pos)
+			for _, param := range fd.Declaration.ParameterList().Nodes {
+				name := param.Name().Text()
+				if pos, ok := returns[name]; ok {
+					fd.Passthrough[name] = uint(pos)
+				}
 			}
 		}
 	}

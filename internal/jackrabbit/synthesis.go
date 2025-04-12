@@ -1,12 +1,61 @@
 package jackrabbit
 
 import (
+	"os"
+	"path"
 	"slices"
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/core"
 )
+
+type Synthesizer struct {
+	sm *SmContext
+}
+
+func NewSynthesizer() *Synthesizer {
+	exePath := path.Dir(os.Args[0])
+	libPath := path.Join(exePath, "hls")
+	sm := CreateSmContext(libPath)
+
+	return &Synthesizer{
+		sm: sm,
+	}
+}
+
+func (syn *Synthesizer) Synthesize(sourceFile *ast.SourceFile, tc *checker.Checker) {
+	sd := GetSourceDescriptor(sourceFile)
+	if sd != nil {
+		visit := func(node *ast.Node) bool {
+			if ast.IsVariableStatement(node) {
+				// generate globals
+				// stmt := node.AsVariableStatement()
+			} else if ast.IsFunctionDeclaration(node) {
+				decl := node.AsFunctionDeclaration()
+				fd := GetFunctionDeclDescriptor(decl)
+				if fd != nil {
+					if fd.UsedByType("hls") {
+						hlsGen := NewHlsProcGen(decl, fd, tc, true)
+						syn.sm.Xic.Generate(hlsGen)
+					}
+				}
+			}
+			return false
+		}
+
+		sourceFile.ForEachChild(visit)
+	}
+}
+
+func (syn *Synthesizer) Finalize() {
+	f, err := os.Create("jackrabit.xic")
+	if err != nil {
+		panic(err)
+	}
+	syn.sm.Xic.Dump(f)
+	f.Sync()
+}
 
 type TextEdit struct {
 	pos    int
@@ -20,17 +69,6 @@ func NewTextEdit(pos int, end int, newLen int) TextEdit {
 		end:    end,
 		newLen: newLen,
 	}
-}
-
-func (e *TextEdit) contains(x int) bool {
-	return e.pos <= x && x < e.end
-}
-
-func (e *TextEdit) overlaps(x int, y int) bool {
-	if y < e.pos || x >= e.end {
-		return false
-	}
-	return true
 }
 
 type HlsDescriptor struct {
@@ -120,4 +158,15 @@ func (s *Synthesis) ApplyEdit(edits []TextEdit) {
 			}
 		}
 	}
+}
+
+func (e *TextEdit) contains(x int) bool {
+	return e.pos <= x && x < e.end
+}
+
+func (e *TextEdit) overlaps(x int, y int) bool {
+	if y < e.pos || x >= e.end {
+		return false
+	}
+	return true
 }

@@ -262,6 +262,15 @@ func (p *Program) GlobalAnalysis() {
 	jackrabbit.FinalizeAnalysis()
 }
 
+func (p *Program) Synthesize() {
+	fmt.Fprintf(os.Stderr, "Synthesis\n")
+	syn := jackrabbit.NewSynthesizer()
+	for file, checker := range p.checkersByFile {
+		syn.Synthesize(file, checker)
+	}
+	syn.Finalize()
+}
+
 func (p *Program) GetResolvedModule(file *ast.SourceFile, moduleReference string) *ast.SourceFile {
 	if resolutions, ok := p.resolvedModules[file.Path()]; ok {
 		if resolved, ok := resolutions[module.ModeAwareCacheKey{Name: moduleReference, Mode: core.ModuleKindCommonJS}]; ok {

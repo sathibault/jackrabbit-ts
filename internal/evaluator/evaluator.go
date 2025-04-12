@@ -48,10 +48,8 @@ func NewEvaluator(evaluateEntity Evaluator, outerExpressionsToSkip ast.OuterExpr
 			if value, ok := result.Value.(jsnum.Number); ok {
 				switch expr.AsPrefixUnaryExpression().Operator {
 				case ast.KindPlusToken:
-				case ast.KindHashPlusToken:
 					return Result{value, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindMinusToken:
-				case ast.KindHashMinusToken:
 					return Result{-value, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindTildeToken:
 					return Result{value.BitwiseNOT(), isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
@@ -80,14 +78,13 @@ func NewEvaluator(evaluateEntity Evaluator, outerExpressionsToSkip ast.OuterExpr
 					return Result{leftNum.LeftShift(rightNum), isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindCaretToken:
 					return Result{leftNum.BitwiseXOR(rightNum), isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
-				case ast.KindAsteriskToken:
-				case ast.KindHashAsteriskToken:
+				case ast.KindAsteriskToken, ast.KindHashAsteriskToken:
 					return Result{leftNum * rightNum, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindSlashToken:
 					return Result{leftNum / rightNum, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
-				case ast.KindPlusToken:
+				case ast.KindPlusToken, ast.KindHashPlusToken:
 					return Result{leftNum + rightNum, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
-				case ast.KindMinusToken:
+				case ast.KindMinusToken, ast.KindHashMinusToken:
 					return Result{leftNum - rightNum, isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}
 				case ast.KindPercentToken:
 					return Result{leftNum.Remainder(rightNum), isSyntacticallyString, resolvedOtherFiles, hasExternalReferences}

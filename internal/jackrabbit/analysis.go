@@ -45,6 +45,11 @@ func NewSourceDescriptor(sourceName string) *SourceDescriptor {
 	}
 }
 
+func (sd *SourceDescriptor) HasModuleType(t string) bool {
+	_, ok := sd.ModuleTypes[t]
+	return ok
+}
+
 func (sd *SourceDescriptor) LocalFunctionList() []string {
 	var funcs []string
 	for name := range sd.FuncNames {
@@ -64,6 +69,13 @@ func (sd *SourceDescriptor) LocalFunctionList() []string {
 		}
 	}
 	return stripped
+}
+
+func GetSourceDescriptor(sourceFile *ast.SourceFile) *SourceDescriptor {
+	if sd, ok := sourceAnalysis[sourceFile.FileName()]; ok {
+		return sd
+	}
+	return nil
 }
 
 func AnalyzeSourceFile(

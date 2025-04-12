@@ -33,7 +33,10 @@ func (n *Namer) GenName(decl *ast.VariableDeclaration) string {
 	if _, exists := n.names[gen]; exists {
 		i := 2
 		gen = fmt.Sprintf("%s_%d", org, i)
-		for _, exists := n.names[gen]; exists; {
+		for {
+			if _, exists := n.names[gen]; !exists {
+				break
+			}
 			i++
 			gen = fmt.Sprintf("%s_%d", org, i)
 		}
@@ -49,7 +52,10 @@ func (n *Namer) GenNewName(org string) string {
 	if _, exists := n.names[gen]; exists {
 		i := 2
 		gen = fmt.Sprintf("%s_%d", org, i)
-		for _, exists := n.names[gen]; exists; {
+		for {
+			if _, exists := n.names[gen]; !exists {
+				break
+			}
 			i++
 			gen = fmt.Sprintf("%s_%d", org, i)
 		}

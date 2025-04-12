@@ -329,6 +329,7 @@ func TsEvaluateExpr(expr *ast.Expression, c *Checker) any {
 	evalEntity := func(expr *ast.Node, location *ast.Node) evaluator.Result {
 		// node may be identitfier, element access, or property access
 		if ast.IsIdentifier(expr) {
+			// fmt.Fprintf(os.Stderr, "EVAL %s ", expr.AsIdentifier().Text)
 			sym := c.GetSymbolAtLocation(expr)
 			if (sym.Flags & ast.SymbolFlagsAlias) != 0 {
 				sym = c.getImmediateAliasedSymbol(sym)
@@ -339,11 +340,21 @@ func TsEvaluateExpr(expr *ast.Expression, c *Checker) any {
 					if ((decl.Flags & ast.NodeFlagsConst) != 0) || (decl.Parent != nil && (decl.Parent.Flags&ast.NodeFlagsConst) != 0) {
 						if decl.Initializer() != nil {
 							val := TsEvaluateExpr(decl.Initializer(), c)
+							// fmt.Fprintln(os.Stderr, "return ", val)
 							return evaluator.Result{Value: val, IsSyntacticallyString: false, ResolvedOtherFiles: false, HasExternalReferences: false}
+						} else {
+							// fmt.Fprintln(os.Stderr, "Missing initializer")
 						}
+					} else {
+						// fmt.Fprintln(os.Stderr, "Not const")
 					}
+				} else {
+					// fmt.Fprintln(os.Stderr, "Not var decl")
 				}
+			} else {
+				// fmt.Fprintln(os.Stderr, "No decl")
 			}
+			// fmt.Fprintln(os.Stderr, "miss")
 		}
 		return evaluator.Result{Value: nil, IsSyntacticallyString: false, ResolvedOtherFiles: false, HasExternalReferences: false}
 	}

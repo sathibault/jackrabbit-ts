@@ -11682,9 +11682,7 @@ func (c *Checker) checkBinaryLikeExpression(left *ast.Node, operatorToken *ast.N
 		}
 	}
 	switch operator {
-	case ast.KindHashPlusToken:
-	case ast.KindHashMinusToken:
-	case ast.KindHashAsteriskToken:
+	case ast.KindHashPlusToken, ast.KindHashMinusToken, ast.KindHashAsteriskToken:
 		// If checkBinaryOpOverload didn't return a type, it's an error
 		if !IsBitType(leftType) {
 			c.error(operatorToken, diagnostics.Operator_0_cannot_be_applied_to_type_1, scanner.TokenToString(operatorToken.Kind), c.TypeToString(leftType))

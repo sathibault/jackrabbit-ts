@@ -255,6 +255,7 @@ func runMain() int {
 
 	if len(diagnostics) == 0 {
 		program.GlobalAnalysis()
+		program.Synthesize()
 	}
 
 	var stats table
