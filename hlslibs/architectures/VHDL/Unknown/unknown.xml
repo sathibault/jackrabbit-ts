@@ -1,7 +1,7 @@
 <?xml version='1.0'?>
 <!DOCTYPE technology PUBLIC "" "">
 <technology version="1.0">
-  <operator name="mul2_u" component="mult" autoip="xilinx::genMult" autoip-timing="xilinx::multTiming">
+  <operator name="mul2_u" component="mult" autoip="unknown::genMult" autoip-timing="unknown::multTiming">
     <parameter name="dsp" values="0 1" default="0"/>
     <parameter name="lut" values="0 1" default="0"/>
     <parameter name="pipeline" values="0 1" default="0"/>
@@ -15,7 +15,7 @@
     <signal name="b" type="in2"/>
     <signal name="sum" type="out1"/>
   </operator>
-  <operator name="mul2_s" component="mult" autoip="xilinx::genMult" autoip-timing="xilinx::multTiming">
+  <operator name="mul2_s" component="mult" autoip="unknown::genMult" autoip-timing="unknown::multTiming">
     <parameter name="dsp" values="0 1" default="0"/>
     <parameter name="lut" values="0 1" default="0"/>
     <parameter name="pipeline" values="0 1" default="0"/>

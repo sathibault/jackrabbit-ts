@@ -10,7 +10,6 @@ import "C"
 import (
 	"fmt"
 	"io"
-	"os"
 	"unsafe"
 )
 
@@ -25,6 +24,7 @@ type HlsBlockSummary struct {
 	BlockNo  uint
 	Pipeline bool
 	Stages   uint
+	DspCount uint
 }
 
 func CreateSmContext(path string) *SmContext {
@@ -42,8 +42,9 @@ func CreateSmContext(path string) *SmContext {
 
 func (sm *SmContext) Generate(proc *HlsProcGen) {
 	sm.Xic.Generate(proc)
-	sm.Xic.Dump(os.Stderr)
-	os.Stderr.Sync()
+	sm.Xic.Finalize()
+	// sm.Xic.Dump(os.Stderr)
+	// os.Stderr.Sync()
 	C.EcSetRoot(sm.api, sm.Xic.root.xml)
 }
 
@@ -65,15 +66,17 @@ func (sm *SmContext) Analysis() []HlsBlockSummary {
 		detail[i].End = int(c_slice[i].end)
 		detail[i].Pipeline = c_slice[i].pipeline != 0
 		detail[i].Stages = uint(c_slice[i].stages)
+		detail[i].DspCount = uint(c_slice[i].n_dsp)
 	}
 	return detail
 }
 
-func (sm *SmContext) RenderBlock(no uint) string {
-	c_html := C.EcRenderBlock(sm.api, C.uint(no))
+func (sm *SmContext) RenderBlock(no uint) (string, uint) {
+	c_lines := C.uint(0)
+	c_html := C.EcRenderBlock(sm.api, C.uint(no), &c_lines)
 	defer C.free(unsafe.Pointer(c_html))
 	html := C.GoString(c_html)
-	return html
+	return html, uint(c_lines)
 }
 
 type XicGenerator struct {
@@ -118,7 +121,11 @@ func newXicGenerator() *XicGenerator {
 
 func (g *XicGenerator) Generate(proc *HlsProcGen) {
 	proc.Generate(g)
-	g.file.InsertBefore(proc.Root, g.config)
+	g.file.InsertBefore(proc.root, g.config)
+}
+
+func (g *XicGenerator) Finalize() {
+	g.connectors.GenerateTarget(g.target)
 }
 
 func (g *XicGenerator) Dump(out io.Writer) {

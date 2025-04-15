@@ -32,6 +32,7 @@ type BlockAnnotationParams = {
 type BlockAnnotation = {
     html: string;
     position: Position;
+    lines: number;
 };
 
 namespace BlockAnnotationRequest {
@@ -162,7 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
             };
             client.sendRequest(BlockAnnotationRequest.type, params).then(block => {
                 output.appendLine(util.inspect(block, { depth: null }));
-                if (block) makePanel(block);
+                if (block) makePanel(textEditor, block, output);
             });
         }),
     );
@@ -252,7 +253,7 @@ function parseWithFakeBoldAndUnderline(input: string): string {
 
 const GOLDEN_LINE_HEIGHT_RATIO = (process.platform == "darwin") ? 1.5 : 1.35;
 
-function makePanel(block: BlockAnnotation) {
+function makePanel(editor: TextEditor, block: BlockAnnotation, out: vscode.OutputChannel) {
     const panel = vscode.window.createWebviewPanel(
         "exampleWebview", // Identifies the type of the webview (used for internal tracking)
         "Code Explanation", // Title of the webview panel
@@ -269,7 +270,19 @@ function makePanel(block: BlockAnnotation) {
     const lineHeight = Math.round(fontSize * GOLDEN_LINE_HEIGHT_RATIO);
     // var lines = Array.from({ length: 30 }, (_, i) => `<div><span style="color: #6E7681";>${1 + i}</span> a = <span style="color: #4FC1FF;">a + 1</span>;</div>`).join("\n");
     // lines += vscode.workspace.getConfiguration("workbench").get("colorTheme");
-    var lines = Array.from({ length: block.position.line + 2 }, (_, i) => "<br/>").join("\n");
+    var top = 0;
+    var H = 999;
+    if (editor.visibleRanges.length > 0) {
+        H = editor.visibleRanges[0].end.line - editor.visibleRanges[0].start.line + 1;
+        top = editor.visibleRanges[0].start.line;
+        out.appendLine(`Position ${top} ${H} ${block.position.line}`);
+    }
+    var skip = (block.position.line - top) + 2;
+    if (skip + block.lines > H) {
+        skip = H - block.lines;
+        if (skip < 0) skip = 0;
+    }
+    var lines = Array.from({ length: skip }, (_, i) => "<br/>").join("\n");
     lines += block.html;
     panel.webview.html = `
         <!DOCTYPE html>

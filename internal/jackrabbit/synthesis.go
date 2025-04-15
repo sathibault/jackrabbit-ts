@@ -24,8 +24,8 @@ func NewSynthesizer() *Synthesizer {
 	}
 }
 
-func (syn *Synthesizer) Synthesize(sourceFile *ast.SourceFile, tc *checker.Checker) {
-	sd := GetSourceDescriptor(sourceFile)
+func (syn *Synthesizer) Synthesize(den *RabbitDen, sourceFile *ast.SourceFile, tc *checker.Checker) {
+	sd := den.GetSourceDescriptor(sourceFile)
 	if sd != nil {
 		visit := func(node *ast.Node) bool {
 			if ast.IsVariableStatement(node) {
@@ -33,10 +33,10 @@ func (syn *Synthesizer) Synthesize(sourceFile *ast.SourceFile, tc *checker.Check
 				// stmt := node.AsVariableStatement()
 			} else if ast.IsFunctionDeclaration(node) {
 				decl := node.AsFunctionDeclaration()
-				fd := GetFunctionDeclDescriptor(decl)
+				fd := den.GetFunctionDeclDescriptor(decl)
 				if fd != nil {
-					if fd.UsedByType("hls") {
-						hlsGen := NewHlsProcGen(decl, fd, tc, true)
+					if fd.InHlsSet() {
+						hlsGen := NewHlsProcGen(den, decl, fd, tc, true)
 						syn.sm.Xic.Generate(hlsGen)
 					}
 				}
@@ -49,6 +49,7 @@ func (syn *Synthesizer) Synthesize(sourceFile *ast.SourceFile, tc *checker.Check
 }
 
 func (syn *Synthesizer) Finalize() {
+	syn.sm.Xic.Finalize()
 	f, err := os.Create("jackrabit.xic")
 	if err != nil {
 		panic(err)
@@ -82,14 +83,14 @@ func (h *HlsDescriptor) GetSummary() []HlsBlockSummary {
 	return h.blocks
 }
 
-func (h *HlsDescriptor) RenderBlock(no uint) (string, int) {
+func (h *HlsDescriptor) RenderBlock(no uint) (string, int, uint) {
 	for i := range h.blocks {
 		if h.blocks[i].BlockNo == no {
-			html := h.sm.RenderBlock(no)
-			return html, h.blocks[i].Position
+			html, lines := h.sm.RenderBlock(no)
+			return html, h.blocks[i].Position, lines
 		}
 	}
-	return "", -1
+	return "", -1, 0
 }
 
 type Synthesis struct {
@@ -104,12 +105,12 @@ func NewSynthesis(architecturesPath string) *Synthesis {
 	}
 }
 
-func (s *Synthesis) EnsureHlsDescriptor(fun *ast.FunctionDeclaration, checker *checker.Checker) {
+func (s *Synthesis) EnsureHlsDescriptor(den *RabbitDen, fun *ast.FunctionDeclaration, checker *checker.Checker) {
 	name := fun.Name().Text()
 	if _, exists := s.hlsModules[name]; !exists {
 		desc := FunctionDescriptor{}
 		sm := CreateSmContext(s.architecturesPath)
-		proc := NewHlsProcGen(fun, &desc, checker, true)
+		proc := NewHlsProcGen(den, fun, &desc, checker, true)
 		sm.Generate(proc)
 		blocks := sm.Analysis()
 		s.hlsModules[name] = &HlsDescriptor{

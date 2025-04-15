@@ -9,57 +9,55 @@ import (
 	"github.com/microsoft/typescript-go/internal/checker"
 )
 
-var sourceAnalysis = make(map[string]*SourceDescriptor)
-
 type SourceDescriptor struct {
-	SourceName  string
-	FuncNames   map[string]struct{}
-	MethodNames map[string]struct{}
-	GlobalUses  map[string]map[string]struct{}      // module type -> names
-	ExternUses  map[string]struct{}                 // our globals referenced externally
-	FileRefs    map[string]map[string]struct{}      // module type -> filenames
-	VarDefs     map[string]*ast.VariableDeclaration // name -> declaration
-	ModuleTypes map[string]struct{}
+	sourceName  string
+	funcNames   map[string]struct{}
+	methodNames map[string]struct{}
+	globalUses  map[string]map[string]struct{}      // module type -> names
+	externUses  map[string]struct{}                 // our globals referenced externally
+	fileRefs    map[string]map[string]struct{}      // module type -> filenames
+	varDefs     map[string]*ast.VariableDeclaration // name -> declaration
+	moduleTypes map[string]struct{}
 }
 
 func NewSourceDescriptor(sourceName string) *SourceDescriptor {
 	return &SourceDescriptor{
-		SourceName:  sourceName,
-		FuncNames:   make(map[string]struct{}),
-		MethodNames: make(map[string]struct{}),
-		GlobalUses: map[string]map[string]struct{}{
+		sourceName:  sourceName,
+		funcNames:   make(map[string]struct{}),
+		methodNames: make(map[string]struct{}),
+		globalUses: map[string]map[string]struct{}{
 			"main":  {},
 			"logic": {},
 			"hls":   {},
 			"test":  {},
 		},
-		ExternUses: make(map[string]struct{}),
-		FileRefs: map[string]map[string]struct{}{
+		externUses: make(map[string]struct{}),
+		fileRefs: map[string]map[string]struct{}{
 			"main":  {},
 			"logic": {},
 			"hls":   {},
 			"test":  {},
 		},
-		VarDefs:     make(map[string]*ast.VariableDeclaration),
-		ModuleTypes: make(map[string]struct{}),
+		varDefs:     make(map[string]*ast.VariableDeclaration),
+		moduleTypes: make(map[string]struct{}),
 	}
 }
 
 func (sd *SourceDescriptor) HasModuleType(t string) bool {
-	_, ok := sd.ModuleTypes[t]
+	_, ok := sd.moduleTypes[t]
 	return ok
 }
 
 func (sd *SourceDescriptor) LocalFunctionList() []string {
 	var funcs []string
-	for name := range sd.FuncNames {
+	for name := range sd.funcNames {
 		funcs = append(funcs, name)
 	}
-	for name := range sd.MethodNames {
+	for name := range sd.methodNames {
 		funcs = append(funcs, name)
 	}
 
-	prefix := sd.SourceName + "::"
+	prefix := sd.sourceName + "::"
 	var stripped []string
 	for _, name := range funcs {
 		if len(name) >= len(prefix) && name[:len(prefix)] == prefix {
@@ -71,19 +69,13 @@ func (sd *SourceDescriptor) LocalFunctionList() []string {
 	return stripped
 }
 
-func GetSourceDescriptor(sourceFile *ast.SourceFile) *SourceDescriptor {
-	if sd, ok := sourceAnalysis[sourceFile.FileName()]; ok {
-		return sd
-	}
-	return nil
-}
-
 func AnalyzeSourceFile(
+	den *RabbitDen,
 	sourceFile *ast.SourceFile,
-	checker *checker.Checker,
+	tc *checker.Checker,
 ) {
 	sd := NewSourceDescriptor(sourceFile.FileName())
-	sourceAnalysis[sourceFile.FileName()] = sd
+	den.sourceAnalysis[sourceFile.FileName()] = sd
 
 	globalVisitor := func(node *ast.Node) bool {
 		if ast.IsVariableStatement(node) {
@@ -92,7 +84,7 @@ func AnalyzeSourceFile(
 			for _, decl := range lst.Declarations.Nodes {
 				varDecl := decl.AsVariableDeclaration()
 				name := varDecl.Symbol.Name
-				sd.VarDefs[name] = varDecl
+				sd.varDefs[name] = varDecl
 			}
 		}
 		return false
@@ -100,7 +92,7 @@ func AnalyzeSourceFile(
 
 	sourceFile.ForEachChild(globalVisitor)
 
-	analyzer := NewAnalysis(sourceFile, checker, sd)
+	analyzer := NewAnalysis(den, sourceFile, tc, sd)
 
 	if strings.Contains(sourceFile.FileName(), "jpeg") {
 		fmt.Fprintf(os.Stderr, "========== %s %d\n", sourceFile.FileName(), len(sourceFile.Statements.Nodes))
@@ -111,18 +103,18 @@ func AnalyzeSourceFile(
 	for {
 		dirty := false
 		var funcs []string
-		for name := range sd.FuncNames {
+		for name := range sd.funcNames {
 			funcs = append(funcs, name)
 		}
-		for name := range sd.MethodNames {
+		for name := range sd.methodNames {
 			funcs = append(funcs, name)
 		}
 
 		for _, name := range funcs {
-			if functionAnalysis[name].Dirty {
+			if den.functionAnalysis[name].dirty {
 				dirty = true
 			}
-			functionAnalysis[name].Dirty = false
+			den.functionAnalysis[name].dirty = false
 		}
 
 		if dirty {
@@ -132,57 +124,58 @@ func AnalyzeSourceFile(
 		}
 	}
 
-	for name := range sd.FuncNames {
-		functionAnalysis[name].FinalizeAnalysis()
+	for name := range sd.funcNames {
+		den.functionAnalysis[name].FinalizeAnalysis()
 	}
-	for name := range sd.MethodNames {
-		functionAnalysis[name].FinalizeAnalysis()
+	for name := range sd.methodNames {
+		den.functionAnalysis[name].FinalizeAnalysis()
 	}
 }
 
 // Need all functions before flow analysis
 func AnalyzeSourcePass2(
+	den *RabbitDen,
 	sourceFile *ast.SourceFile,
 	checker *checker.Checker,
 ) {
-	source := sourceAnalysis[sourceFile.FileName()]
-	funcs := make([]string, 0, len(source.FuncNames)+len(source.MethodNames))
-	for name := range source.FuncNames {
+	source := den.sourceAnalysis[sourceFile.FileName()]
+	funcs := make([]string, 0, len(source.funcNames)+len(source.methodNames))
+	for name := range source.funcNames {
 		funcs = append(funcs, name)
 	}
-	for name := range source.MethodNames {
+	for name := range source.methodNames {
 		funcs = append(funcs, name)
 	}
 	for _, method := range funcs {
-		if analysis, ok := functionAnalysis[method]; ok {
-			analysis.FlowAnalysis(checker)
+		if analysis, ok := den.functionAnalysis[method]; ok {
+			analysis.FlowAnalysis(den, checker)
 		}
 	}
 }
 
-func FinalizeAnalysis() {
+func FinalizeAnalysis(den *RabbitDen) {
 	// Run resolveShapes
-	for _, source := range sourceAnalysis {
+	for _, source := range den.sourceAnalysis {
 		first := true
-		funcs := make([]string, 0, len(source.FuncNames)+len(source.MethodNames))
-		for name := range source.FuncNames {
+		funcs := make([]string, 0, len(source.funcNames)+len(source.methodNames))
+		for name := range source.funcNames {
 			funcs = append(funcs, name)
 		}
-		for name := range source.MethodNames {
+		for name := range source.methodNames {
 			funcs = append(funcs, name)
 		}
 		for _, method := range funcs {
-			if analysis, ok := functionAnalysis[method]; ok {
+			if analysis, ok := den.functionAnalysis[method]; ok {
 				analysis.ResolveShapes()
-				if analysis.ModuleType != nil || len(analysis.ModuleUsers) > 0 {
+				if analysis.moduleType != nil || len(analysis.moduleUsers) > 0 {
 					if first {
-						fmt.Fprintf(os.Stderr, "%s:\n", source.SourceName)
+						fmt.Fprintf(os.Stderr, "%s:\n", source.sourceName)
 						first = false
 					}
-					if analysis.ModuleType != nil {
-						fmt.Fprintf(os.Stderr, "\t%s: %s %s\n", method, *analysis.ModuleType, strings.Join(analysis.ModuleUsers, ", "))
+					if analysis.moduleType != nil {
+						fmt.Fprintf(os.Stderr, "\t%s: %s %s\n", method, *analysis.moduleType, strings.Join(analysis.moduleUsers, ", "))
 					} else {
-						fmt.Fprintf(os.Stderr, "\t%s: nil %s\n", method, strings.Join(analysis.ModuleUsers, ", "))
+						fmt.Fprintf(os.Stderr, "\t%s: nil %s\n", method, strings.Join(analysis.moduleUsers, ", "))
 					}
 				}
 			}
@@ -190,23 +183,23 @@ func FinalizeAnalysis() {
 	}
 
 	// Transfer global usage from use files to def files
-	for _, source := range sourceAnalysis {
-		funcs := make([]string, 0, len(source.FuncNames)+len(source.MethodNames))
-		for name := range source.FuncNames {
+	for _, source := range den.sourceAnalysis {
+		funcs := make([]string, 0, len(source.funcNames)+len(source.methodNames))
+		for name := range source.funcNames {
 			funcs = append(funcs, name)
 		}
-		for name := range source.MethodNames {
+		for name := range source.methodNames {
 			funcs = append(funcs, name)
 		}
 		for _, method := range funcs {
-			if analysis, ok := functionAnalysis[method]; ok {
-				for fileName, refs := range analysis.GlobalRefs {
-					if target, exists := sourceAnalysis[fileName]; exists {
-						if analysis.ModuleType != nil && *analysis.ModuleType != "logic" {
-							extendSetMap(target.GlobalUses, *analysis.ModuleType, refs)
+			if analysis, ok := den.functionAnalysis[method]; ok {
+				for fileName, refs := range analysis.globalRefs {
+					if target, exists := den.sourceAnalysis[fileName]; exists {
+						if analysis.moduleType != nil && *analysis.moduleType != "logic" {
+							extendSetMap(target.globalUses, *analysis.moduleType, refs)
 						}
-						for _, moduleType := range analysis.ModuleUsers {
-							extendSetMap(target.GlobalUses, moduleType, refs)
+						for _, moduleType := range analysis.moduleUsers {
+							extendSetMap(target.globalUses, moduleType, refs)
 						}
 					}
 				}
@@ -215,36 +208,36 @@ func FinalizeAnalysis() {
 	}
 
 	// Collect all module types for source files
-	for sourceFile, source := range sourceAnalysis {
-		for moduleType, uses := range source.GlobalUses {
+	for sourceFile, source := range den.sourceAnalysis {
+		for moduleType, uses := range source.globalUses {
 			if len(uses) > 0 {
-				source.ModuleTypes[moduleType] = struct{}{}
+				source.moduleTypes[moduleType] = struct{}{}
 			}
 		}
 
-		funcs := make([]string, 0, len(source.FuncNames)+len(source.MethodNames))
-		for name := range source.FuncNames {
+		funcs := make([]string, 0, len(source.funcNames)+len(source.methodNames))
+		for name := range source.funcNames {
 			funcs = append(funcs, name)
 		}
-		for name := range source.MethodNames {
+		for name := range source.methodNames {
 			funcs = append(funcs, name)
 		}
 		for _, method := range funcs {
-			if analysis, ok := functionAnalysis[method]; ok {
-				if analysis.ModuleType != nil {
-					source.ModuleTypes[*analysis.ModuleType] = struct{}{}
+			if analysis, ok := den.functionAnalysis[method]; ok {
+				if analysis.moduleType != nil {
+					source.moduleTypes[*analysis.moduleType] = struct{}{}
 				}
-				for _, moduleType := range analysis.ModuleUsers {
-					source.ModuleTypes[moduleType] = struct{}{}
+				for _, moduleType := range analysis.moduleUsers {
+					source.moduleTypes[moduleType] = struct{}{}
 				}
 
-				for fileName := range analysis.GlobalRefs {
+				for fileName := range analysis.globalRefs {
 					if fileName != sourceFile {
-						if analysis.ModuleType != nil {
-							addToSetMap(source.FileRefs, *analysis.ModuleType, fileName)
+						if analysis.moduleType != nil {
+							addToSetMap(source.fileRefs, *analysis.moduleType, fileName)
 						}
-						for _, moduleType := range analysis.ModuleUsers {
-							addToSetMap(source.FileRefs, moduleType, fileName)
+						for _, moduleType := range analysis.moduleUsers {
+							addToSetMap(source.fileRefs, moduleType, fileName)
 						}
 					}
 				}
@@ -254,20 +247,23 @@ func FinalizeAnalysis() {
 }
 
 type Analysis struct {
-	SourceFile       *ast.SourceFile
-	Checker          *checker.Checker
-	SourceDescriptor *SourceDescriptor
+	den              *RabbitDen
+	sourceFile       *ast.SourceFile
+	tc               *checker.Checker
+	sourceDescriptor *SourceDescriptor
 }
 
 func NewAnalysis(
+	den *RabbitDen,
 	sourceFile *ast.SourceFile,
 	checker *checker.Checker,
 	sourceDescriptor *SourceDescriptor,
 ) *Analysis {
 	return &Analysis{
-		SourceFile:       sourceFile,
-		Checker:          checker,
-		SourceDescriptor: sourceDescriptor,
+		den:              den,
+		sourceFile:       sourceFile,
+		tc:               checker,
+		sourceDescriptor: sourceDescriptor,
 	}
 }
 
@@ -275,7 +271,7 @@ func (a *Analysis) Visit(node *ast.Node) bool {
 	if ast.IsClassDeclaration(node) {
 		classDecl := node.AsClassDeclaration()
 		if classDecl.Name() != nil {
-			analyzer := NewClassAnalysis(node, a.SourceFile, a.Checker, a.SourceDescriptor)
+			analyzer := NewClassAnalysis(a.den, node, a.sourceFile, a.tc, a.sourceDescriptor)
 			node.ForEachChild(analyzer.Visit)
 			return false
 		}
@@ -284,15 +280,15 @@ func (a *Analysis) Visit(node *ast.Node) bool {
 		if funcDecl.Name() != nil {
 			qualified := checker.QualifiedFuncName(funcDecl)
 			method := funcDecl.Name().Text()
-			if _, ok := functionAnalysis[*qualified]; !ok {
-				a.SourceDescriptor.FuncNames[*qualified] = struct{}{}
-				functionAnalysis[*qualified] = newFunctionDescriptor(method, node, a.Checker)
+			if _, ok := a.den.functionAnalysis[*qualified]; !ok {
+				a.sourceDescriptor.funcNames[*qualified] = struct{}{}
+				a.den.functionAnalysis[*qualified] = newFunctionDescriptor(method, node, a.tc)
 
-				globals := NewGlobalsAnalysis(functionAnalysis[*qualified], a.Checker)
+				globals := NewGlobalsAnalysis(a.den.functionAnalysis[*qualified], a.tc)
 				node.ForEachChild(globals.Visit)
 			}
 
-			analyzer := NewFunctionAnalysis(functionAnalysis[*qualified], node, a.SourceFile, a.Checker)
+			analyzer := NewFunctionAnalysis(a.den, a.den.functionAnalysis[*qualified], node, a.sourceFile, a.tc)
 			node.ForEachChild(analyzer.Visit)
 			return false
 		}
@@ -302,14 +298,16 @@ func (a *Analysis) Visit(node *ast.Node) bool {
 }
 
 type ClassAnalysis struct {
+	den              *RabbitDen
 	ClassName        string
-	QualifiedClass   string
-	SourceFile       *ast.SourceFile
-	Checker          *checker.Checker
-	SourceDescriptor *SourceDescriptor
+	qualifiedClass   string
+	sourceFile       *ast.SourceFile
+	tc               *checker.Checker
+	sourceDescriptor *SourceDescriptor
 }
 
 func NewClassAnalysis(
+	den *RabbitDen,
 	node *ast.Node, // Should be a ClassDeclaration
 	sourceFile *ast.SourceFile,
 	tc *checker.Checker,
@@ -320,11 +318,12 @@ func NewClassAnalysis(
 	qualifiedClass := *checker.QualifiedClassName(classDecl)
 
 	return &ClassAnalysis{
+		den:              den,
 		ClassName:        className,
-		QualifiedClass:   qualifiedClass,
-		SourceFile:       sourceFile,
-		Checker:          tc,
-		SourceDescriptor: sourceDescriptor,
+		qualifiedClass:   qualifiedClass,
+		sourceFile:       sourceFile,
+		tc:               tc,
+		sourceDescriptor: sourceDescriptor,
 	}
 }
 
@@ -332,18 +331,18 @@ func (ca *ClassAnalysis) Visit(node *ast.Node) bool {
 	if ast.IsMethodDeclaration(node) {
 		method := node.AsMethodDeclaration()
 		name := method.Name().Text()
-		qualified := ca.QualifiedClass + "." + name
+		qualified := ca.qualifiedClass + "." + name
 		methodKey := ca.ClassName + "." + name
 
-		if _, ok := functionAnalysis[qualified]; !ok {
-			ca.SourceDescriptor.MethodNames[qualified] = struct{}{}
-			functionAnalysis[qualified] = newFunctionDescriptor(methodKey, node, ca.Checker)
+		if _, ok := ca.den.functionAnalysis[qualified]; !ok {
+			ca.sourceDescriptor.methodNames[qualified] = struct{}{}
+			ca.den.functionAnalysis[qualified] = newFunctionDescriptor(methodKey, node, ca.tc)
 
-			globals := NewGlobalsAnalysis(functionAnalysis[qualified], ca.Checker)
+			globals := NewGlobalsAnalysis(ca.den.functionAnalysis[qualified], ca.tc)
 			node.ForEachChild(globals.Visit)
 		}
 
-		analyzer := NewFunctionAnalysis(functionAnalysis[qualified], node, ca.SourceFile, ca.Checker)
+		analyzer := NewFunctionAnalysis(ca.den, ca.den.functionAnalysis[qualified], node, ca.sourceFile, ca.tc)
 		node.ForEachChild(analyzer.Visit)
 		return false
 	}
@@ -352,22 +351,25 @@ func (ca *ClassAnalysis) Visit(node *ast.Node) bool {
 }
 
 type FunctionAnalysis struct {
+	den        *RabbitDen
 	SourceFile *ast.SourceFile
-	Checker    *checker.Checker
-	Descriptor *FunctionDescriptor
+	tc         *checker.Checker
+	descriptor *FunctionDescriptor
 	dfaDepth   int
 }
 
 func NewFunctionAnalysis(
+	den *RabbitDen,
 	descriptor *FunctionDescriptor,
 	node *ast.Node,
 	sourceFile *ast.SourceFile,
 	checker *checker.Checker,
 ) *FunctionAnalysis {
 	fa := &FunctionAnalysis{
-		Descriptor: descriptor,
+		den:        den,
+		descriptor: descriptor,
 		SourceFile: sourceFile,
-		Checker:    checker,
+		tc:         checker,
 		dfaDepth:   0,
 	}
 
@@ -384,13 +386,13 @@ func NewFunctionAnalysis(
 							if id.Text == "module" && len(expr.Arguments.Nodes) == 1 {
 								if ast.IsStringLiteral(expr.Arguments.Nodes[0]) {
 									arg := expr.Arguments.Nodes[0].AsStringLiteral()
-									fa.Descriptor.ModuleType = &arg.Text
-									fmt.Println("MODULE", fa.Descriptor.MethodName, fa.Descriptor.ModuleType)
+									fa.descriptor.moduleType = &arg.Text
+									fmt.Fprintln(os.Stderr, "MODULE", fa.descriptor.methodName, fa.descriptor.moduleType)
 								} else {
 									panic("Module type must be string literal")
 								}
 							} else if id.Text == "inline" {
-								fa.Descriptor.Inlined = true
+								fa.descriptor.inlined = true
 							}
 						}
 					}
@@ -403,11 +405,11 @@ func NewFunctionAnalysis(
 }
 
 func (fa *FunctionAnalysis) Visit(node *ast.Node) bool {
-	if fa.Descriptor.ModuleType != nil && *fa.Descriptor.ModuleType == "logic" {
+	if fa.descriptor.moduleType != nil && *fa.descriptor.moduleType == "logic" {
 		if call := node.AsCallExpression(); call != nil {
-			callee := getCalleeDescriptor(call, fa.Checker)
-			if callee != nil && callee.ModuleType != nil && *callee.ModuleType != "test" {
-				callee.UpdateUsers(fa.Descriptor)
+			callee := fa.den.getCalleeDescriptor(call, fa.tc)
+			if callee != nil && callee.moduleType != nil && *callee.moduleType != "test" {
+				callee.UpdateUsers(fa.descriptor)
 			}
 		}
 		return false
@@ -426,31 +428,31 @@ func (fa *FunctionAnalysis) Visit(node *ast.Node) bool {
 				return false
 			}
 			if id.Text == "waitFor" && len(call.Arguments.Nodes) == 1 {
-				if !fa.Descriptor.NeedAsync {
-					fa.Descriptor.NeedAsync = true
-					fa.Descriptor.Dirty = true
-					fmt.Println(fa.Descriptor.MethodName, "+ async")
+				if !fa.descriptor.needAsync {
+					fa.descriptor.needAsync = true
+					fa.descriptor.dirty = true
+					fmt.Fprintln(os.Stderr, fa.descriptor.methodName, "+ async")
 				}
 			}
 		}
 
-		if callee := getCalleeDescriptor(call, fa.Checker); callee != nil {
-			if callee.ModuleType != nil && *callee.ModuleType != "test" {
-				callee.UpdateUsers(fa.Descriptor)
+		if callee := fa.den.getCalleeDescriptor(call, fa.tc); callee != nil {
+			if callee.moduleType != nil && *callee.moduleType != "test" {
+				callee.UpdateUsers(fa.descriptor)
 			}
 
-			if callee.ModuleType != nil && !contains(fa.Descriptor.CalledTypes, *callee.ModuleType) {
-				fa.Descriptor.CalledTypes = append(fa.Descriptor.CalledTypes, *callee.ModuleType)
+			if callee.moduleType != nil && !contains(fa.descriptor.calledTypes, *callee.moduleType) {
+				fa.descriptor.calledTypes = append(fa.descriptor.calledTypes, *callee.moduleType)
 			}
 
-			if fa.Descriptor.ModuleType != nil {
-				if *fa.Descriptor.ModuleType != "logic" || (*callee.ModuleType != "hls" && *callee.ModuleType != "test") {
-					if !fa.Descriptor.NeedAsync && callee.NeedAsync {
-						fa.Descriptor.NeedAsync = true
-						fa.Descriptor.Dirty = true
-						fmt.Println(fa.Descriptor.MethodName, "+ async via", callee.MethodName)
-						if *fa.Descriptor.ModuleType == "logic" {
-							panic(fmt.Sprintf("Unexpected async call %s in logic module %s", callee.MethodName, fa.Descriptor.MethodName))
+			if fa.descriptor.moduleType != nil {
+				if *fa.descriptor.moduleType != "logic" || (*callee.moduleType != "hls" && *callee.moduleType != "test") {
+					if !fa.descriptor.needAsync && callee.needAsync {
+						fa.descriptor.needAsync = true
+						fa.descriptor.dirty = true
+						fmt.Fprintln(os.Stderr, fa.descriptor.methodName, "+ async via", callee.methodName)
+						if *fa.descriptor.moduleType == "logic" {
+							panic(fmt.Sprintf("Unexpected async call %s in logic module %s", callee.methodName, fa.descriptor.methodName))
 						}
 					}
 				}
@@ -507,10 +509,10 @@ func (ga *GlobalsAnalysis) Visit(node *ast.Node) bool {
 				}
 
 				if module != nil {
-					if ga.Descriptor.GlobalRefs[*module] == nil {
-						ga.Descriptor.GlobalRefs[*module] = map[string]struct{}{}
+					if ga.Descriptor.globalRefs[*module] == nil {
+						ga.Descriptor.globalRefs[*module] = map[string]struct{}{}
 					}
-					ga.Descriptor.GlobalRefs[*module][node.AsIdentifier().Text] = struct{}{}
+					ga.Descriptor.globalRefs[*module][node.AsIdentifier().Text] = struct{}{}
 				}
 			}
 		}

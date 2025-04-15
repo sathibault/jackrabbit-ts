@@ -7,6 +7,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/compiler/diagnostics"
 	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/jackrabbit"
 	"github.com/microsoft/typescript-go/internal/tsoptions"
 	"github.com/microsoft/typescript-go/internal/tspath"
 )
@@ -217,7 +218,7 @@ func compileAndEmit(sys System, program *compiler.Program, reportDiagnostic diag
 		diagnostics = append(diagnostics, program.GetSemanticDiagnostics(nil)...)
 	}
 
-	program.GlobalAnalysis()
+	program.GlobalAnalysis(jackrabbit.NewRabbitDen())
 
 	// TODO: declaration diagnostics
 	if len(diagnostics) == 0 && options.NoEmit == core.TSTrue && (options.Declaration.IsTrue() && options.Composite.IsTrue()) {

@@ -13,134 +13,100 @@ var ASYNC_RUNNERS = map[string]bool{
 	"stimulus": true,
 }
 
-var functionAnalysis = make(map[string]*FunctionDescriptor)
-
-func GetFunctionIdentDescriptor(fun *ast.Identifier, tc *checker.Checker) *FunctionDescriptor {
-	name := checker.QualifiedIdentName(fun, tc)
-	if name != nil {
-		if f, ok := functionAnalysis[*name]; ok {
-			return f
-		}
-	}
-	return nil
-}
-
-func GetFunctionDeclDescriptor(fun *ast.FunctionDeclaration) *FunctionDescriptor {
-	qualified := checker.QualifiedFuncName(fun)
-	if qualified != nil {
-		if fd, ok := functionAnalysis[*qualified]; ok {
-			return fd
-		}
-	}
-	return nil
-}
-
-func getCalleeDescriptor(expr *ast.CallExpression, tc *checker.Checker) *FunctionDescriptor {
-	fun := expr.Expression
-	if ast.IsIdentifier(fun) {
-		return GetFunctionIdentDescriptor(fun.AsIdentifier(), tc)
-	} else if ast.IsPropertyAccessExpression(fun) {
-		access := fun.AsPropertyAccessExpression()
-		method := access.Name().Text()
-		objType := tc.GetTypeAtLocation(access.Expression)
-		cls := checker.QualifiedTypeName(objType, tc)
-		if cls != nil {
-			name := fmt.Sprintf("%s.%s", *cls, method)
-			if f, ok := functionAnalysis[name]; ok {
-				return f
-			}
-		}
-	}
-	return nil
-}
-
 type FunctionDescriptor struct {
-	MethodName          string
-	Declaration         *ast.Node
+	methodName          string
+	declaration         *ast.Node
 	arrayParams         []uint
-	ModuleType          *string
-	ModuleUsers         []string
-	CalledTypes         []string
-	NeedAsync           bool
-	AwaitToplevel       bool
-	Inlined             bool
-	ParamMap            map[string]uint
-	ObservedParamShapes map[uint][][]uint
+	moduleType          *string
+	moduleUsers         []string
+	calledTypes         []string
+	needAsync           bool
+	awaitToplevel       bool
+	inlined             bool
+	paramMap            map[string]uint
+	observedParamShapes map[uint][][]uint
 	resolvedParamShapes map[uint][]*uint
-	Passthrough         map[string]uint
-	GlobalRefs          map[string]map[string]struct{} // map to set
-	RtlDescriptor       *RtlModDescriptor
-	Dirty               bool
+	passthrough         map[string]uint
+	globalRefs          map[string]map[string]struct{} // map to set
+	rtlDescriptor       *RtlModDescriptor
+	dirty               bool
 }
 
 func newFunctionDescriptor(name string, decl *ast.Node, tc *checker.Checker) *FunctionDescriptor {
 	fd := &FunctionDescriptor{
-		Declaration:         decl,
-		MethodName:          name,
-		ModuleUsers:         []string{},
-		CalledTypes:         []string{},
-		Inlined:             false,
-		NeedAsync:           false,
-		AwaitToplevel:       true,
-		Passthrough:         map[string]uint{},
-		GlobalRefs:          map[string]map[string]struct{}{},
-		Dirty:               false,
-		ParamMap:            map[string]uint{},
+		declaration:         decl,
+		methodName:          name,
+		moduleUsers:         []string{},
+		calledTypes:         []string{},
+		inlined:             false,
+		needAsync:           false,
+		awaitToplevel:       true,
+		passthrough:         map[string]uint{},
+		globalRefs:          map[string]map[string]struct{}{},
+		dirty:               false,
+		paramMap:            map[string]uint{},
 		arrayParams:         []uint{},
-		ObservedParamShapes: map[uint][][]uint{},
+		observedParamShapes: map[uint][][]uint{},
 		resolvedParamShapes: map[uint][]*uint{},
 	}
 
 	for idx, p := range decl.ParameterList().Nodes {
 		name := p.Name().Text()
-		fd.ParamMap[name] = uint(idx)
+		fd.paramMap[name] = uint(idx)
 		typ := tc.GetTypeAtLocation(p)
 		if checker.IsArrayType(tc, typ) {
 			fd.arrayParams = append(fd.arrayParams, uint(idx))
-			fd.ObservedParamShapes[uint(idx)] = [][]uint{}
+			fd.observedParamShapes[uint(idx)] = [][]uint{}
 		}
 	}
 
 	return fd
 }
 
-func (fd *FunctionDescriptor) UsedByType(t string) bool {
-	if fd.ModuleType != nil && *fd.ModuleType == t {
+func (fd *FunctionDescriptor) InHlsSet() bool {
+	if fd.moduleType != nil && *fd.moduleType == "hls" {
 		return true
 	}
-	return contains(fd.ModuleUsers, t)
+	return contains(fd.moduleUsers, "hls")
+}
+
+func (fd *FunctionDescriptor) InFirmwareSet() bool {
+	if fd.moduleType != nil && *fd.moduleType == "main" {
+		return true
+	}
+	return contains(fd.moduleUsers, "main")
 }
 
 func (fd *FunctionDescriptor) FinalizeAnalysis() {
-	if fd.ModuleType != nil {
-		if *fd.ModuleType == "test" {
-			for _, t := range fd.CalledTypes {
+	if fd.moduleType != nil {
+		if *fd.moduleType == "test" {
+			for _, t := range fd.calledTypes {
 				if t == "logic" {
-					fd.NeedAsync = false
-					fd.AwaitToplevel = false
+					fd.needAsync = false
+					fd.awaitToplevel = false
 					break
 				}
 			}
-		} else if *fd.ModuleType == "logic" || *fd.ModuleType == "hls" {
-			fd.AwaitToplevel = false
+		} else if *fd.moduleType == "logic" || *fd.moduleType == "hls" {
+			fd.awaitToplevel = false
 		}
 	}
 }
 
 func (fd *FunctionDescriptor) addArrayParamCall(pos uint, shape []uint) {
-	for _, s := range fd.ObservedParamShapes[pos] {
+	for _, s := range fd.observedParamShapes[pos] {
 		if equalArrays(s, shape) {
 			return
 		}
 	}
-	// fmt.Println("GOT", fd.MethodName, pos, shape)
-	fd.ObservedParamShapes[pos] = append(fd.ObservedParamShapes[pos], shape)
+	// fmt.Fprintln(os.Stderr, "GOT", fd.MethodName, pos, shape)
+	fd.observedParamShapes[pos] = append(fd.observedParamShapes[pos], shape)
 }
 
 func (fd *FunctionDescriptor) ResolveShapes() {
 	fd.resolvedParamShapes = map[uint][]*uint{}
 	for _, pos := range fd.arrayParams {
-		shapes := fd.ObservedParamShapes[pos]
+		shapes := fd.observedParamShapes[pos]
 		if len(shapes) > 0 {
 			fd.resolvedParamShapes[pos] = mergeShapes(shapes)
 		}
@@ -148,7 +114,7 @@ func (fd *FunctionDescriptor) ResolveShapes() {
 }
 
 func (fd *FunctionDescriptor) ResolvedParamShape(name string) []*uint {
-	if idx, ok := fd.ParamMap[name]; ok {
+	if idx, ok := fd.paramMap[name]; ok {
 		return fd.resolvedParamShapes[idx]
 	}
 	return nil
@@ -156,33 +122,33 @@ func (fd *FunctionDescriptor) ResolvedParamShape(name string) []*uint {
 
 func (fd *FunctionDescriptor) UpdateUsers(caller *FunctionDescriptor) {
 	users := make(map[string]struct{})
-	if caller.ModuleType != nil {
-		users[*caller.ModuleType] = struct{}{}
+	if caller.moduleType != nil {
+		users[*caller.moduleType] = struct{}{}
 	}
-	for _, u := range caller.ModuleUsers {
+	for _, u := range caller.moduleUsers {
 		users[u] = struct{}{}
 	}
 	for user := range users {
-		if (fd.ModuleType == nil || *fd.ModuleType != user) && !contains(fd.ModuleUsers, user) {
-			fd.ModuleUsers = append(fd.ModuleUsers, user)
-			fd.Dirty = true
-			fmt.Fprintf(os.Stderr, "%s %s via %s\n", fd.MethodName, user, caller.MethodName)
+		if (fd.moduleType == nil || *fd.moduleType != user) && !contains(fd.moduleUsers, user) {
+			fd.moduleUsers = append(fd.moduleUsers, user)
+			fd.dirty = true
+			fmt.Fprintf(os.Stderr, "%s %s via %s\n", fd.methodName, user, caller.methodName)
 		}
 	}
 }
 
-func (fd *FunctionDescriptor) FlowAnalysis(checker *checker.Checker) {
-	body := fd.Declaration.Body()
+func (fd *FunctionDescriptor) FlowAnalysis(den *RabbitDen, checker *checker.Checker) {
+	body := fd.declaration.Body()
 	if body == nil {
 		return
 	}
 
-	runner := NewAbstractRunner(NewFlowAnalysis(checker))
+	runner := NewAbstractRunner(NewFlowAnalysis(den, checker))
 	runner.Run(body.AsBlock())
 	flow := runner.State
 
-	if flow.Returned != nil {
-		if retVal, ok := flow.Returned.(*AbstractArrayValue); ok {
+	if flow.returned != nil {
+		if retVal, ok := flow.returned.(*AbstractArrayValue); ok {
 			returns := map[string]int{}
 			for idx, elm := range retVal.Elements {
 				if id, ok := elm.(*AbstractIdentifierValue); ok {
@@ -190,10 +156,10 @@ func (fd *FunctionDescriptor) FlowAnalysis(checker *checker.Checker) {
 					returns[name] = idx
 				}
 			}
-			for _, param := range fd.Declaration.ParameterList().Nodes {
+			for _, param := range fd.declaration.ParameterList().Nodes {
 				name := param.Name().Text()
 				if pos, ok := returns[name]; ok {
-					fd.Passthrough[name] = uint(pos)
+					fd.passthrough[name] = uint(pos)
 				}
 			}
 		}
@@ -201,7 +167,7 @@ func (fd *FunctionDescriptor) FlowAnalysis(checker *checker.Checker) {
 }
 
 func (f *FunctionDescriptor) IsReferenceParameter(name string, t *checker.Type, tc *checker.Checker) bool {
-	if _, ok := f.Passthrough[name]; ok {
+	if _, ok := f.passthrough[name]; ok {
 		return !checker.IsArrayType(tc, t)
 	}
 	return false
@@ -211,7 +177,7 @@ func (fd *FunctionDescriptor) GetReturnType(typ *checker.Type, tc *checker.Check
 	if checker.IsTypeReference(typ) && checker.IsTupleType(tc, typ) {
 		elements := checker.ResolvedTypeArguments(typ)
 		pass := make([]bool, len(elements))
-		for _, idx := range fd.Passthrough {
+		for _, idx := range fd.passthrough {
 			if idx >= 0 && int(idx) < len(pass) {
 				pass[idx] = true
 			}
@@ -223,7 +189,7 @@ func (fd *FunctionDescriptor) GetReturnType(typ *checker.Type, tc *checker.Check
 			}
 		}
 		if len(filtered) > 1 {
-			panic(fmt.Sprintf("Failed to reduce function return %s", fd.MethodName))
+			panic(fmt.Sprintf("Failed to reduce function return %s", fd.methodName))
 		} else if len(filtered) == 1 {
 			return filtered[0]
 		}
@@ -237,7 +203,7 @@ func (fd *FunctionDescriptor) GetReturnTypeNode(typ *ast.Node) *ast.Node {
 		elements := typ.AsTupleTypeNode().Elements.Nodes
 		pass := make([]bool, len(elements))
 
-		for _, idx := range fd.Passthrough {
+		for _, idx := range fd.passthrough {
 			if idx >= 0 && int(idx) < len(pass) {
 				pass[idx] = true
 			}
@@ -251,7 +217,7 @@ func (fd *FunctionDescriptor) GetReturnTypeNode(typ *ast.Node) *ast.Node {
 		}
 
 		if len(filtered) > 1 {
-			assert(false, fmt.Sprintf("Failed to reduce function return %s", fd.MethodName))
+			assert(false, fmt.Sprintf("Failed to reduce function return %s", fd.methodName))
 		} else if len(filtered) == 1 {
 			return filtered[0]
 		} else {
@@ -266,7 +232,7 @@ func (fd *FunctionDescriptor) GetReturnExpression(expr *ast.Node) *ast.Node {
 	if ast.IsArrayLiteralExpression(expr) {
 		arrLit := expr.AsArrayLiteralExpression()
 		pass := make([]bool, len(arrLit.Elements.Nodes))
-		for _, idx := range fd.Passthrough {
+		for _, idx := range fd.passthrough {
 			if idx >= 0 && int(idx) < len(pass) {
 				pass[idx] = true
 			}
@@ -278,7 +244,7 @@ func (fd *FunctionDescriptor) GetReturnExpression(expr *ast.Node) *ast.Node {
 			}
 		}
 		if len(filtered) > 1 {
-			panic(fmt.Sprintf("Failed to reduce function return %s", fd.MethodName))
+			panic(fmt.Sprintf("Failed to reduce function return %s", fd.methodName))
 		} else if len(filtered) == 1 {
 			return filtered[0]
 		}
@@ -289,7 +255,7 @@ func (fd *FunctionDescriptor) GetReturnExpression(expr *ast.Node) *ast.Node {
 
 func (fd *FunctionDescriptor) FilterCallerLhs(elements []*ast.Node) []*ast.Node {
 	pass := make([]bool, len(elements))
-	for _, idx := range fd.Passthrough {
+	for _, idx := range fd.passthrough {
 		if idx >= 0 && int(idx) < len(pass) {
 			pass[idx] = true
 		}

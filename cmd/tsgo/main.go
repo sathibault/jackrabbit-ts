@@ -19,6 +19,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/diagnosticwriter"
 	"github.com/microsoft/typescript-go/internal/execute"
+	"github.com/microsoft/typescript-go/internal/jackrabbit"
 	"github.com/microsoft/typescript-go/internal/pprof"
 	"github.com/microsoft/typescript-go/internal/scanner"
 	"github.com/microsoft/typescript-go/internal/tspath"
@@ -254,8 +255,9 @@ func runMain() int {
 	}
 
 	if len(diagnostics) == 0 {
-		program.GlobalAnalysis()
-		program.Synthesize()
+		den := jackrabbit.NewRabbitDen()
+		program.GlobalAnalysis(den)
+		program.Synthesize(den)
 	}
 
 	var stats table

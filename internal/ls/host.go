@@ -2,6 +2,7 @@ package ls
 
 import (
 	"github.com/microsoft/typescript-go/internal/ast"
+	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/jackrabbit"
@@ -26,5 +27,6 @@ type Host interface {
 	GetProgram() *compiler.Program
 	GetDefaultLibraryPath() string
 	GetSynthesis(fileName string) *jackrabbit.Synthesis
-	GetOrCreateSynthesis(architecturesPath string, fileName string) *jackrabbit.Synthesis
+	IsFunctionInHls(decl *ast.FunctionDeclaration) bool
+	GetHlsFunctionSummary(archPath string, fileName string, decl *ast.FunctionDeclaration, tc *checker.Checker) []jackrabbit.HlsBlockSummary
 }

@@ -250,23 +250,23 @@ func (p *Program) GetTypeCheckerForFile(file *ast.SourceFile) *checker.Checker {
 	return p.checkersByFile[file]
 }
 
-func (p *Program) GlobalAnalysis() {
+func (p *Program) GlobalAnalysis(den *jackrabbit.RabbitDen) {
 	fmt.Fprintf(os.Stderr, "Global analysis pass 1\n")
 	for file, checker := range p.checkersByFile {
-		jackrabbit.AnalyzeSourceFile(file, checker)
+		jackrabbit.AnalyzeSourceFile(den, file, checker)
 	}
 	fmt.Fprintf(os.Stderr, "Global analysis pass 2\n")
 	for file, checker := range p.checkersByFile {
-		jackrabbit.AnalyzeSourcePass2(file, checker)
+		jackrabbit.AnalyzeSourcePass2(den, file, checker)
 	}
-	jackrabbit.FinalizeAnalysis()
+	jackrabbit.FinalizeAnalysis(den)
 }
 
-func (p *Program) Synthesize() {
+func (p *Program) Synthesize(den *jackrabbit.RabbitDen) {
 	fmt.Fprintf(os.Stderr, "Synthesis\n")
 	syn := jackrabbit.NewSynthesizer()
 	for file, checker := range p.checkersByFile {
-		syn.Synthesize(file, checker)
+		syn.Synthesize(den, file, checker)
 	}
 	syn.Finalize()
 }

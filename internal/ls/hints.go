@@ -14,11 +14,11 @@ type HlsHint struct {
 	Block  *jackrabbit.HlsBlockSummary
 }
 
-func (l *LanguageService) GetBlockAnnotation(fileName string, method string, no uint) (string, int) {
+func (l *LanguageService) GetBlockAnnotation(fileName string, method string, no uint) (string, int, uint) {
 	_, file := l.getProgramAndFile(fileName)
 	synthesis := l.host.GetSynthesis(fileName)
 	if synthesis == nil {
-		return "ERROR: synthesis not found", -1
+		return "ERROR: synthesis not found", -1, 0
 	}
 
 	node := core.Find(file.Statements.Nodes, func(node *ast.Node) bool {
@@ -29,26 +29,25 @@ func (l *LanguageService) GetBlockAnnotation(fileName string, method string, no 
 		return false
 	})
 	if node == nil {
-		return fmt.Sprintf("ERROR: %s not found", method), -1
+		return fmt.Sprintf("ERROR: %s not found", method), -1, 0
 	}
 
 	decl := node.AsFunctionDeclaration()
 	desc := synthesis.GetHlsDescriptor(decl)
 
 	if desc == nil {
-		return fmt.Sprintf("ERROR: %s descriptor not found", method), -1
+		return fmt.Sprintf("ERROR: %s descriptor not found", method), -1, 0
 	}
-	html, pos := desc.RenderBlock(no)
+	html, pos, lines := desc.RenderBlock(no)
 	if pos < 0 {
-		return fmt.Sprintf("ERROR: block %d not found", no), -1
+		return fmt.Sprintf("ERROR: block %d not found", no), -1, 0
 	}
 
-	return html, pos
+	return html, pos, lines
 }
 
 func (l *LanguageService) ProvideHlsHints(archPath string, fileName string, start_pos int, end_pos int, stderr io.Writer) []HlsHint {
 	program, file := l.getProgramAndFile(fileName)
-	synthesis := l.host.GetOrCreateSynthesis(archPath, fileName)
 
 	fmt.Fprintln(stderr, "Inlay search", start_pos, end_pos)
 
@@ -57,18 +56,18 @@ func (l *LanguageService) ProvideHlsHints(archPath string, fileName string, star
 	visit := func(node *ast.Node) *ast.Node {
 		if ast.IsFunctionDeclaration(node) {
 			decl := node.AsFunctionDeclaration()
-			name := decl.Name().Text()
-			synthesis.EnsureHlsDescriptor(decl, program.GetTypeChecker())
-			desc := synthesis.GetHlsDescriptor(decl)
-			details := desc.GetSummary()
-			for _, detail := range details {
-				fmt.Fprintln(stderr, "Block", detail.BlockNo, detail.Position, detail.End, detail.Stages)
-				pos := int(detail.Position)
-				if start_pos <= pos && pos <= end_pos {
-					hints = append(hints, HlsHint{
-						Method: name,
-						Block:  &detail,
-					})
+			if l.host.IsFunctionInHls(decl) {
+				name := decl.Name().Text()
+				details := l.host.GetHlsFunctionSummary(archPath, fileName, decl, program.GetTypeChecker())
+				for _, detail := range details {
+					fmt.Fprintln(stderr, "Block", detail.BlockNo, detail.Position, detail.End, detail.Stages)
+					pos := int(detail.Position)
+					if start_pos <= pos && pos <= end_pos {
+						hints = append(hints, HlsHint{
+							Method: name,
+							Block:  &detail,
+						})
+					}
 				}
 			}
 		}

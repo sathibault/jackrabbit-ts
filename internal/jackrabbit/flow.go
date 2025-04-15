@@ -2,6 +2,7 @@ package jackrabbit
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
@@ -153,17 +154,19 @@ func (s *AbstractStore) ToCompactString() string {
 }
 
 type FlowAnalysis struct {
-	Store    *AbstractStore
-	Returned AbstractValue
-	Indent   string
-	Checker  *checker.Checker
+	den      *RabbitDen
+	store    *AbstractStore
+	returned AbstractValue
+	indent   string
+	tc       *checker.Checker
 }
 
-func NewFlowAnalysis(c *checker.Checker) *FlowAnalysis {
+func NewFlowAnalysis(den *RabbitDen, c *checker.Checker) *FlowAnalysis {
 	return &FlowAnalysis{
-		Store:   NewAbstractStore(),
-		Indent:  "",
-		Checker: c,
+		den:    den,
+		store:  NewAbstractStore(),
+		indent: "",
+		tc:     c,
 	}
 }
 
@@ -181,19 +184,19 @@ func (fa *FlowAnalysis) Apply(stmt *ast.Node) {
 
 func (fa *FlowAnalysis) Merge(other AbstractState) bool {
 	o := other.(*FlowAnalysis)
-	return fa.Store.Merge(o.Store)
+	return fa.store.Merge(o.store)
 }
 
 func (fa *FlowAnalysis) Clone() AbstractState {
-	copy := NewFlowAnalysis(fa.Checker)
-	copy.Store = fa.Store.Clone()
-	copy.Returned = fa.Returned
-	copy.Indent = fa.Indent
+	copy := NewFlowAnalysis(fa.den, fa.tc)
+	copy.store = fa.store.Clone()
+	copy.returned = fa.returned
+	copy.indent = fa.indent
 	return copy
 }
 
 func (fa *FlowAnalysis) Dump() {
-	fmt.Println("STORE", fa.Store.ToCompactString())
+	fmt.Fprintln(os.Stderr, "STORE", fa.store.ToCompactString())
 }
 
 func (f *FlowAnalysis) Visit(n *ast.Node) {
@@ -224,11 +227,11 @@ func (f *FlowAnalysis) Visit(n *ast.Node) {
 	case ast.KindVariableDeclaration:
 		decl := n.AsVariableDeclaration()
 		if decl.Initializer != nil {
-			val := toAbstract(decl.Initializer, f.Checker)
+			val := toAbstract(decl.Initializer, f.tc)
 			if val != nil {
-				f.Store.Variables[decl.Symbol.Name] = val
+				f.store.Variables[decl.Symbol.Name] = val
 			} else {
-				f.Store.Variables[decl.Symbol.Name] = &AbstractUndefinedValue{}
+				f.store.Variables[decl.Symbol.Name] = &AbstractUndefinedValue{}
 			}
 		}
 		return
@@ -237,20 +240,20 @@ func (f *FlowAnalysis) Visit(n *ast.Node) {
 		ret := n.AsReturnStatement()
 		var val AbstractValue = &AbstractUndefinedValue{}
 		if ret.Expression != nil {
-			if v := toAbstract(ret.Expression, f.Checker); v != nil {
+			if v := toAbstract(ret.Expression, f.tc); v != nil {
 				val = v
 			}
 		}
-		if f.Returned == nil {
-			f.Returned = val
+		if f.returned == nil {
+			f.returned = val
 		} else {
-			f.Returned = mergeAbstract(f.Returned, val)
+			f.returned = mergeAbstract(f.returned, val)
 		}
 		return
 
 	case ast.KindCallExpression:
 		call := n.AsCallExpression()
-		callee := getCalleeDescriptor(call, f.Checker)
+		callee := f.den.getCalleeDescriptor(call, f.tc)
 		if callee != nil {
 			for _, pos := range callee.arrayParams {
 				shape := f.evalShape(call.Arguments.Nodes[pos])
@@ -271,12 +274,12 @@ func (fa *FlowAnalysis) evalShape(expr *ast.Expression) []int {
 	if ast.IsIdentifier(expr) {
 		return fa.lookupShape(expr.AsIdentifier().Text)
 	}
-	shape := checker.ArrayExprShape(expr, fa.Checker)
+	shape := checker.ArrayExprShape(expr, fa.tc)
 	return core.Map(shape, uint32ToInt)
 }
 
 func (fa *FlowAnalysis) lookupShape(name string) []int {
-	value, ok := fa.Store.Variables[name]
+	value, ok := fa.store.Variables[name]
 	if !ok {
 		return nil
 	}
@@ -299,11 +302,11 @@ func (fa *FlowAnalysis) lookupShape(name string) []int {
 }
 
 func (f *FlowAnalysis) assign(lhs *ast.Expression, rhs *ast.Expression) {
-	val := toAbstract(rhs, f.Checker)
+	val := toAbstract(rhs, f.tc)
 	if val != nil {
 		if ast.IsIdentifier(lhs) {
 			ident := lhs.AsIdentifier()
-			f.Store.Variables[ident.Text] = val
+			f.store.Variables[ident.Text] = val
 		} else if ast.IsPropertyAccessExpression(lhs) {
 		}
 	} else {
@@ -314,7 +317,7 @@ func (f *FlowAnalysis) assign(lhs *ast.Expression, rhs *ast.Expression) {
 func (f *FlowAnalysis) killLhs(expr *ast.Expression) {
 	switch expr.Kind {
 	case ast.KindIdentifier:
-		f.Store.Variables[expr.AsIdentifier().Text] = &AbstractUnknownValue{}
+		f.store.Variables[expr.AsIdentifier().Text] = &AbstractUnknownValue{}
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/microsoft/typescript-go/internal/ast"
+	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/collections"
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
@@ -58,6 +59,7 @@ type Project struct {
 	languageService *ls.LanguageService
 	program         *compiler.Program
 
+	den             *jackrabbit.RabbitDen
 	synthesisByPath map[tspath.Path]*jackrabbit.Synthesis
 }
 
@@ -199,6 +201,29 @@ func (p *Project) GetOrCreateSynthesis(architecturesPath string, fileName string
 		p.synthesisByPath[path] = jackrabbit.NewSynthesis(architecturesPath)
 	}
 	return p.synthesisByPath[path]
+}
+
+func (p *Project) getDen() *jackrabbit.RabbitDen {
+	if p.den == nil {
+		p.den = jackrabbit.NewRabbitDen()
+		p.program.GlobalAnalysis(p.den)
+	}
+	return p.den
+}
+
+func (p *Project) IsFunctionInHls(decl *ast.FunctionDeclaration) bool {
+	desc := p.getDen().GetFunctionDeclDescriptor(decl)
+	if desc != nil {
+		return desc.InHlsSet()
+	}
+	return false
+}
+
+func (p *Project) GetHlsFunctionSummary(archPath string, fileName string, decl *ast.FunctionDeclaration, tc *checker.Checker) []jackrabbit.HlsBlockSummary {
+	synthesis := p.GetOrCreateSynthesis(archPath, fileName)
+	synthesis.EnsureHlsDescriptor(p.getDen(), decl, tc)
+	desc := synthesis.GetHlsDescriptor(decl)
+	return desc.GetSummary()
 }
 
 func (p *Project) getOrCreateScriptInfoAndAttachToProject(fileName string, scriptKind core.ScriptKind) *ScriptInfo {

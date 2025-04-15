@@ -28,6 +28,7 @@ const MethodBlockAnnotation lsproto.Method = "jackrabbit/blockAnnotation"
 type BlockAnnotation struct {
 	Html     string           `json:"html"`
 	Position lsproto.Position `json:"position"`
+	Lines    uint             `json:"lines"`
 }
 
 type ServerOptions struct {
@@ -241,11 +242,12 @@ func (s *Server) handleBlockAnnotation(req *lsproto.RequestMessage) error {
 	method := params["method"].(string)
 	block := uint(params["block"].(float64))
 	file, project := s.getFileAndProject(uri)
-	html, pos := project.LanguageService().GetBlockAnnotation(file.FileName(), method, block)
+	html, pos, lines := project.LanguageService().GetBlockAnnotation(file.FileName(), method, block)
 	loc := s.converters.positionToLineAndCharacter(file, core.TextPos(pos))
 	ann := BlockAnnotation{
 		Html:     html,
 		Position: loc,
+		Lines:    lines,
 	}
 	return s.sendResult(req.ID, &ann)
 }
@@ -271,11 +273,15 @@ func (s *Server) handleInlayHint(req *lsproto.RequestMessage) error {
 		var label string
 		var markdown string
 		if info.Block.Pipeline {
-			label = fmt.Sprintf("LT: %d", info.Block.Stages)
-			markdown = fmt.Sprintf("Latency %d", info.Block.Stages)
+			label = fmt.Sprintf("LTY: %d", info.Block.Stages)
+			markdown = fmt.Sprintf("Latency: %d", info.Block.Stages)
 		} else {
-			label = fmt.Sprintf("CY: %d", info.Block.Stages)
-			markdown = fmt.Sprintf("Cycles %d", info.Block.Stages)
+			label = fmt.Sprintf("CYC: %d", info.Block.Stages)
+			markdown = fmt.Sprintf("Cycles: %d", info.Block.Stages)
+		}
+		if info.Block.DspCount > 0 {
+			label = fmt.Sprintf("%s DSP: %d", label, info.Block.DspCount)
+			markdown = fmt.Sprintf("%s\n\nDSP: %d", markdown, info.Block.DspCount)
 		}
 		hints = append(hints, lsproto.InlayHint{
 			Position: pos,
