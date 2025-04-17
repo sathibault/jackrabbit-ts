@@ -2,6 +2,7 @@ package tsoptions
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"regexp"
 	"slices"
@@ -1514,6 +1515,7 @@ func getFileNamesFromConfigSpecs(
 	for file := range wildCardJsonFileMap.Values() {
 		files = append(files, file)
 	}
+	fmt.Fprintln(os.Stderr,"FILES",files)
 	return files
 }
 

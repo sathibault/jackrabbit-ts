@@ -1234,6 +1234,12 @@ func (r *resolutionState) tryAddingExtensions(extensionless string, extensions e
 			if resolved := r.tryExtension(tspath.ExtensionTs, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
 				return resolved
 			}
+			if resolved := r.tryExtension(tspath.ExtensionTslx, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
+				return resolved
+			}
+			if resolved := r.tryExtension(tspath.ExtensionJrb, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
+				return resolved
+			}
 		}
 		if extensions&extensionsDeclaration != 0 {
 			if resolved := r.tryExtension(tspath.ExtensionDts, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
@@ -1273,6 +1279,20 @@ func (r *resolutionState) tryAddingExtensions(extensionless string, extensions e
 		}
 		if r.isConfigLookup {
 			if resolved := r.tryExtension(tspath.ExtensionJson, extensionless, false, onlyRecordFailures); !resolved.shouldContinueSearching() {
+				return resolved
+			}
+		}
+		return continueSearching()
+	case tspath.ExtensionTslx:
+		if extensions&extensionsTypeScript != 0 {
+			if resolved := r.tryExtension(tspath.ExtensionTslx, extensionless, originalExtension == tspath.ExtensionTs || originalExtension == tspath.ExtensionDts, onlyRecordFailures); !resolved.shouldContinueSearching() {
+				return resolved
+			}
+		}
+		return continueSearching()
+	case tspath.ExtensionJrb:
+		if extensions&extensionsTypeScript != 0 {
+			if resolved := r.tryExtension(tspath.ExtensionJrb, extensionless, originalExtension == tspath.ExtensionTs || originalExtension == tspath.ExtensionDts, onlyRecordFailures); !resolved.shouldContinueSearching() {
 				return resolved
 			}
 		}
@@ -1807,7 +1827,7 @@ func matchesPatternWithTrailer(target string, name string) bool {
 /** True if `extension` is one of the supported `extensions`. */
 func extensionIsOk(extensions extensions, extension string) bool {
 	return (extensions&extensionsJavaScript != 0 && (extension == tspath.ExtensionJs || extension == tspath.ExtensionJsx || extension == tspath.ExtensionMjs || extension == tspath.ExtensionCjs) ||
-		(extensions&extensionsTypeScript != 0 && (extension == tspath.ExtensionTs || extension == tspath.ExtensionTsx || extension == tspath.ExtensionMts || extension == tspath.ExtensionCts)) ||
+		(extensions&extensionsTypeScript != 0 && (extension == tspath.ExtensionTs || extension == tspath.ExtensionJrb || extension == tspath.ExtensionTslx || extension == tspath.ExtensionTsx || extension == tspath.ExtensionMts || extension == tspath.ExtensionCts)) ||
 		(extensions&extensionsDeclaration != 0 && (extension == tspath.ExtensionDts || extension == tspath.ExtensionDmts || extension == tspath.ExtensionDcts)) ||
 		(extensions&extensionsJson != 0 && extension == tspath.ExtensionJson))
 }

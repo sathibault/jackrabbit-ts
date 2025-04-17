@@ -124,7 +124,7 @@ func (e extensions) String() string {
 func (e extensions) Array() []string {
 	result := []string{}
 	if e&extensionsTypeScript != 0 {
-		result = append(result, tspath.ExtensionTs, tspath.ExtensionTsx)
+		result = append(result, tspath.ExtensionTs, tspath.ExtensionJrb, tspath.ExtensionTslx, tspath.ExtensionTsx)
 	}
 	if e&extensionsJavaScript != 0 {
 		result = append(result, tspath.ExtensionJs, tspath.ExtensionJsx)

@@ -142,7 +142,7 @@ func DoJsEmitBaseline(
 	////	compareResultFileSets(withoutChecking.Js, result.Js)
 	////}
 
-	if tspath.FileExtensionIsOneOf(baselinePath, []string{tspath.ExtensionTs, tspath.ExtensionTsx}) {
+	if tspath.FileExtensionIsOneOf(baselinePath, []string{tspath.ExtensionTs, tspath.ExtensionJrb, tspath.ExtensionTslx, tspath.ExtensionTsx}) {
 		baselinePath = tspath.ChangeExtension(baselinePath, tspath.ExtensionJs)
 	}
 
