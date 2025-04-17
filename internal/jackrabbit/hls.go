@@ -127,9 +127,9 @@ func (p *HlsProcGen) Generate(xic *XicGenerator) *XMLBuilder {
 		t := p.tc.GetTypeAtLocation(param)
 
 		if p.asModule {
-			if checker.IsTypeReferenceOf(t, "StreamIn") || checker.IsTypeReferenceOf(t, "StreamOut") {
+			if checker.HasInterface(t, "StreamIn") || checker.HasInterface(t, "StreamOut") {
 				role := "writer"
-				if checker.IsTypeReferenceOf(t, "StreamIn") {
+				if checker.HasInterface(t, "StreamIn") {
 					role = "reader"
 				}
 
@@ -149,6 +149,7 @@ func (p *HlsProcGen) Generate(xic *XicGenerator) *XMLBuilder {
 					"spec":  spec,
 				})
 			} else {
+				checker.DumpType(t)
 				panic("unsupported parameter type for module")
 			}
 		} else {

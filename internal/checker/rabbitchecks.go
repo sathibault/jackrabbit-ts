@@ -30,7 +30,12 @@ func QualifiedTypeName(t *Type, checker *Checker) *string {
 func qualifiedName(sym *ast.Symbol, checker *Checker) *string {
 	name := sym.Name
 	if sym.Flags&ast.SymbolFlagsAlias != 0 {
+		orig := sym
 		sym = checker.getImmediateAliasedSymbol(sym)
+		if sym == nil {
+			fmt.Fprintln(os.Stderr, "Failed to get aliased symbol", orig.Name)
+			return nil
+		}
 	}
 	if len(sym.Declarations) > 0 {
 		decl := sym.Declarations[0]
@@ -394,6 +399,19 @@ func checkBaseType(t, query *Type, base string, depth int) bool {
 	return false
 }
 
+func HasInterface(t *Type, name string) bool {
+	if t.alias != nil {
+		if t.alias.symbol.Name == name {
+			return true
+		}
+	}
+	if t.objectFlags&ObjectFlagsReference != 0 {
+		data := t.AsTypeReference()
+		return data.symbol != nil && data.symbol.Name == name
+	}
+	return false
+}
+
 func IsPrimitive(t *Type) bool {
 	if IsBitType(t) {
 		return true
@@ -424,6 +442,18 @@ func IsTypeReferenceOf(t *Type, name string) bool {
 
 func GetObjectFlags(t *Type) ObjectFlags {
 	return t.objectFlags
+}
+
+func DumpType(t *Type) {
+	sym := "nil"
+	if t.symbol != nil {
+		sym = fmt.Sprintf("{ flags %08x name %s }", t.symbol.Flags, t.symbol.Name)
+	}
+	alias := "nil"
+	if t.alias != nil {
+		alias = fmt.Sprintf("{ flags %08x name %s }", t.alias.symbol.Flags, t.alias.symbol.Name)
+	}
+	fmt.Fprintf(os.Stderr, "{ flags: %08x objectFlags: %08x symbol: %s alias: %s}\n", t.flags, t.objectFlags, sym, alias)
 }
 
 func ParseTypeSpec(spec string) TypeDescriptor {

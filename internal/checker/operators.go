@@ -374,7 +374,7 @@ func IsRtlType(t *Type) bool {
 		}
 		if t.objectFlags&ObjectFlagsReference != 0 {
 			data := t.AsTypeReference()
-			if data.symbol.Name == "RtlExpr" {
+			if data.symbol != nil && data.symbol.Name == "RtlExpr" {
 				rtlCache[query.id] = rtl_table{query, data}
 				return true
 			}
@@ -405,6 +405,9 @@ func rtlBaseType(t *Type) *TypeReference {
 }
 
 func ResolvedTypeArguments(t *Type) []*Type {
+	if t.alias != nil {
+		return t.alias.typeArguments
+	}
 	d := t.AsTypeReference()
 	return d.resolvedTypeArguments
 }
