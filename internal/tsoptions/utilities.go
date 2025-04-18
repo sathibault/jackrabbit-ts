@@ -2,7 +2,6 @@ package tsoptions
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -454,6 +453,5 @@ func matchFiles(path string, extensions []string, excludes []string, includes []
 }
 
 func readDirectory(host vfs.FS, currentDir string, path string, extensions []string, excludes []string, includes []string, depth *int) []string {
-	fmt.Fprintln(os.Stderr,"READDIR", path, extensions)
 	return matchFiles(path, extensions, excludes, includes, host.UseCaseSensitiveFileNames(), currentDir, depth, host)
 }

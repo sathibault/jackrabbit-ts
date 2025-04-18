@@ -2,9 +2,7 @@ package compiler
 
 import (
 	"cmp"
-	"fmt"
 	"iter"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -63,7 +61,6 @@ func processAllProgramFiles(
 		supportedExtensions: core.Flatten(tsoptions.GetSupportedExtensionsWithJsonIfResolveJsonModule(compilerOptions, supportedExtensions)),
 	}
 
-	fmt.Fprintln(os.Stderr, "ROOT", rootFiles)
 	loader.addRootTasks(rootFiles, false)
 	loader.addRootTasks(libs, true)
 	loader.addAutomaticTypeDirectiveTasks()
@@ -74,7 +71,6 @@ func processAllProgramFiles(
 
 	files, libFiles := []*ast.SourceFile{}, []*ast.SourceFile{}
 	for task := range loader.collectTasks(loader.rootTasks) {
-		fmt.Fprintln(os.Stderr,"ADD",task.file.FileName())
 		if task.isLib {
 			libFiles = append(libFiles, task.file)
 		} else {
