@@ -366,6 +366,9 @@ func IsRtlType(t *Type) bool {
 	}
 	var check func(*Type, *Type, int) bool
 	check = func(t *Type, query *Type, depth int) bool {
+		if t == nil {
+			return false
+		}
 		if depth > 10 {
 			return false // run-away recursion
 		}
@@ -374,7 +377,7 @@ func IsRtlType(t *Type) bool {
 		}
 		if t.objectFlags&ObjectFlagsReference != 0 {
 			data := t.AsTypeReference()
-			if data.symbol != nil && data.symbol.Name == "RtlExpr" {
+			if data != nil && data.symbol != nil && data.symbol.Name == "RtlExpr" {
 				rtlCache[query.id] = rtl_table{query, data}
 				return true
 			}
@@ -405,7 +408,7 @@ func rtlBaseType(t *Type) *TypeReference {
 }
 
 func ResolvedTypeArguments(t *Type) []*Type {
-	if t.alias != nil {
+	if t.alias != nil && t.alias.typeArguments != nil {
 		return t.alias.typeArguments
 	}
 	d := t.AsTypeReference()

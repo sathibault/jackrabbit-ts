@@ -2,6 +2,7 @@ package checker
 
 import (
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -501,6 +502,9 @@ func (c *Checker) checkArrayLiteralRelatedToBits(source *Type, target *Type, exp
 				}
 
 				if !assignableToBitType(sourcePropType, targetPropType) {
+					fmt.Fprintln(os.Stderr, "checkArrayLiteralRelatedToBits failed at", i)
+					DumpType(sourcePropType)
+					DumpType(targetPropType)
 					break
 				}
 			}
@@ -510,6 +514,10 @@ func (c *Checker) checkArrayLiteralRelatedToBits(source *Type, target *Type, exp
 
 		match++
 	}
+
+	// if length == 12 && length != match {
+	// 	fmt.Fprintln(os.Stderr, "FAIL ARRAY", match)
+	// }
 
 	// If length is 0, this may not even be related to bit types and needs standard checks
 	return length > 0 && match == length

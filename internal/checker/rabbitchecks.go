@@ -451,7 +451,11 @@ func DumpType(t *Type) {
 	}
 	alias := "nil"
 	if t.alias != nil {
-		alias = fmt.Sprintf("{ flags %08x name %s }", t.alias.symbol.Flags, t.alias.symbol.Name)
+		types := "nil"
+		if t.alias.typeArguments != nil {
+			types = fmt.Sprintf("%d[]", len(t.alias.typeArguments))
+		}
+		alias = fmt.Sprintf("{ flags %08x name %s typeArguments %s}", t.alias.symbol.Flags, t.alias.symbol.Name, types)
 	}
 	fmt.Fprintf(os.Stderr, "{ flags: %08x objectFlags: %08x symbol: %s alias: %s}\n", t.flags, t.objectFlags, sym, alias)
 }
