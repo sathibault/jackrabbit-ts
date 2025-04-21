@@ -5,6 +5,7 @@ import (
 	"iter"
 	"maps"
 	"math"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -10243,6 +10244,10 @@ func (c *Checker) checkPostfixUnaryExpression(node *ast.Node) *Type {
 	operandType := c.checkExpression(expr.Operand)
 	if operandType == c.silentNeverType {
 		return c.silentNeverType
+	}
+	overload := checkUnaryOpOverload(expr.Operator, operandType)
+	if overload != nil {
+		return overload
 	}
 	ok := c.checkArithmeticOperandType(expr.Operand, c.checkNonNullType(operandType, expr.Operand), diagnostics.An_arithmetic_operand_must_be_of_type_any_number_bigint_or_an_enum_type, false)
 	if ok {
@@ -25855,6 +25860,12 @@ func (c *Checker) compareProperties(sourceProp *ast.Symbol, targetProp *ast.Symb
 	if c.isReadonlySymbol(sourceProp) != c.isReadonlySymbol(targetProp) {
 		return TernaryFalse
 	}
+
+	target := c.getTypeOfSymbol(targetProp)
+	if IsBitType(target) {
+		fmt.Fprintln(os.Stderr, "compareProperites", c.TypeToString(target))
+	}
+
 	return compareTypes(c.getTypeOfSymbol(sourceProp), c.getTypeOfSymbol(targetProp))
 }
 

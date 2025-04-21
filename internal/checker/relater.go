@@ -295,6 +295,12 @@ func (c *Checker) isSimpleTypeRelatedTo(source *Type, target *Type, relation *Re
 			return true
 		}
 	}
+
+	if s&TypeFlagsNumber != 0 || s&TypeFlagsNumberLiteral != 0 || s&TypeFlagsBigIntLike != 0 || s&TypeFlagsEnum != 0 {
+		if IsBitType(target) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -4282,6 +4288,9 @@ func (r *Relater) propertiesRelatedTo(source *Type, target *Type, reportErrors b
 func (r *Relater) propertyRelatedTo(source *Type, target *Type, sourceProp *ast.Symbol, targetProp *ast.Symbol, getTypeOfSourceProperty func(sym *ast.Symbol) *Type, reportErrors bool, intersectionState IntersectionState, skipOptional bool) Ternary {
 	sourcePropFlags := getDeclarationModifierFlagsFromSymbol(sourceProp)
 	targetPropFlags := getDeclarationModifierFlagsFromSymbol(targetProp)
+	if IsBitType(target) {
+		fmt.Fprintln(os.Stderr, "propertyRelatedTo", r.c.TypeToString(target))
+	}
 	switch {
 	case sourcePropFlags&ast.ModifierFlagsPrivate != 0 || targetPropFlags&ast.ModifierFlagsPrivate != 0:
 		if sourceProp.ValueDeclaration != targetProp.ValueDeclaration {
@@ -4347,6 +4356,13 @@ func (r *Relater) isPropertySymbolTypeRelated(sourceProp *ast.Symbol, targetProp
 	targetIsOptional := r.c.strictNullChecks && targetProp.CheckFlags&ast.CheckFlagsPartial != 0
 	effectiveTarget := r.c.addOptionalityEx(r.c.getNonMissingTypeOfSymbol(targetProp), false /*isProperty*/, targetIsOptional)
 	effectiveSource := getTypeOfSourceProperty(sourceProp)
+	if IsBitType(effectiveTarget) {
+		fmt.Fprintln(os.Stderr, "isPropertySymboltTypeRelated", r.c.TypeToString(effectiveSource), r.c.TypeToString(effectiveTarget))
+
+		res := r.isRelatedToEx(effectiveSource, effectiveTarget, RecursionFlagsBoth, reportErrors, nil /*headMessage*/, intersectionState)
+		fmt.Fprintln(os.Stderr, res)
+		return res
+	}
 	return r.isRelatedToEx(effectiveSource, effectiveTarget, RecursionFlagsBoth, reportErrors, nil /*headMessage*/, intersectionState)
 }
 

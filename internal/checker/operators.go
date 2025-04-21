@@ -243,8 +243,8 @@ func checkInitializerOverload(target *Type, initType *Type, initializer *ast.Nod
 func assignableToBitType(source *Type, target *Type) bool {
 	if source.flags&TypeFlagsNumberLiteral != 0 {
 		return true
-	} else if ResolvedTypeArguments(target) != nil {
-		if IsBitType(source) && ResolvedTypeArguments(source) != nil {
+	} else if HasKnownTypeArguments(target, 1) {
+		if IsBitType(source) && HasKnownTypeArguments(source, 1) {
 			s1 := isSignedBitType(target)
 			s2 := isSignedBitType(source)
 			w1 := ResolvedTypeArguments(target)[0].AsLiteralType().value
@@ -405,6 +405,19 @@ func rtlBaseType(t *Type) *TypeReference {
 	}
 	log.Fatal("rtlCache miss")
 	return nil
+}
+
+func HasKnownTypeArguments(t *Type, N int) bool {
+	types := ResolvedTypeArguments(t)
+	if len(types) == N {
+		for i := range types {
+			if (types[i].flags & TypeFlagsNumberLiteral) == 0 {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func ResolvedTypeArguments(t *Type) []*Type {
