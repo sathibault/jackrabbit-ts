@@ -246,7 +246,7 @@ func (s *Server) handleBlockAnnotation(req *lsproto.RequestMessage) error {
 	block := uint(params["block"].(float64))
 	file, project := s.getFileAndProject(uri)
 	html, pos, lines := project.LanguageService().GetBlockAnnotation(file.FileName(), method, block)
-	loc := s.converters.positionToLineAndCharacter(file, core.TextPos(pos))
+	loc := s.converters.PositionToLineAndCharacter(file, core.TextPos(pos))
 	ann := BlockAnnotation{
 		Html:     html,
 		Position: loc,
@@ -258,11 +258,11 @@ func (s *Server) handleBlockAnnotation(req *lsproto.RequestMessage) error {
 func (s *Server) handleInlayHint(req *lsproto.RequestMessage) error {
 	params := req.Params.(*lsproto.InlayHintParams)
 	file, project := s.getFileAndProject(params.TextDocument.Uri)
-	pos1, err := s.converters.lineAndCharacterToPositionForFile(params.Range.Start, file.FileName())
+	pos1, err := s.converters.LineAndCharacterToPositionForFile(params.Range.Start, file.FileName())
 	if err != nil {
 		return s.sendError(req.ID, err)
 	}
-	pos2, err2 := s.converters.lineAndCharacterToPositionForFile(params.Range.End, file.FileName())
+	pos2, err2 := s.converters.LineAndCharacterToPositionForFile(params.Range.End, file.FileName())
 	if err2 != nil {
 		return s.sendError(req.ID, err2)
 	}
@@ -271,7 +271,7 @@ func (s *Server) handleInlayHint(req *lsproto.RequestMessage) error {
 	hlsHints := project.LanguageService().ProvideHlsHints(libPath, file.FileName(), pos1, pos2, s.stderr)
 	hints := make([]lsproto.InlayHint, 0, len(hlsHints))
 	for _, info := range hlsHints {
-		pos := s.converters.positionToLineAndCharacter(file, core.TextPos(info.Block.Position))
+		pos := s.converters.PositionToLineAndCharacter(file, core.TextPos(info.Block.Position))
 		var label string
 		var markdown string
 		if info.Block.Pipeline {
@@ -285,20 +285,19 @@ func (s *Server) handleInlayHint(req *lsproto.RequestMessage) error {
 			label = fmt.Sprintf("%s DSP: %d", label, info.Block.DspCount)
 			markdown = fmt.Sprintf("%s\n\nDSP: %d", markdown, info.Block.DspCount)
 		}
+		part1 := lsproto.InlayHintLabelPart{
+			Value: label,
+			Command: &lsproto.Command{
+				Title:     "debug",
+				Command:   "typescript-go.hlsAnnotate",
+				Arguments: &[]lsproto.LSPAny{info.Method, info.Block.BlockNo},
+			},
+		}
 		hints = append(hints, lsproto.InlayHint{
 			Position: pos,
 			Label: lsproto.StringOrInlayHintLabelParts{
-				String: nil,
-				InlayHintLabelParts: &[]lsproto.InlayHintLabelPart{
-					{
-						Value: label,
-						Command: &lsproto.Command{
-							Title:     "debug",
-							Command:   "typescript-go.hlsAnnotate",
-							Arguments: &[]any{info.Method, info.Block.BlockNo},
-						},
-					},
-				},
+				String:              nil,
+				InlayHintLabelParts: &[]*lsproto.InlayHintLabelPart{&part1},
 			},
 			Tooltip: &lsproto.StringOrMarkupContent{
 				MarkupContent: &lsproto.MarkupContent{
