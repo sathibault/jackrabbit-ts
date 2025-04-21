@@ -6,6 +6,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/jackrabbit"
+	"github.com/microsoft/typescript-go/internal/lsp/lsproto"
 	"github.com/microsoft/typescript-go/internal/tspath"
 	"github.com/microsoft/typescript-go/internal/vfs"
 )
@@ -29,4 +30,6 @@ type Host interface {
 	GetSynthesis(fileName string) *jackrabbit.Synthesis
 	IsFunctionInHls(decl *ast.FunctionDeclaration) bool
 	GetHlsFunctionSummary(archPath string, fileName string, decl *ast.FunctionDeclaration, tc *checker.Checker) []jackrabbit.HlsBlockSummary
+	GetPositionEncoding() lsproto.PositionEncodingKind
+	GetScriptInfo(fileName string) ScriptInfo
 }
