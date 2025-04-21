@@ -1234,12 +1234,6 @@ func (r *resolutionState) tryAddingExtensions(extensionless string, extensions e
 			if resolved := r.tryExtension(tspath.ExtensionTs, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
 				return resolved
 			}
-			if resolved := r.tryExtension(tspath.ExtensionTslx, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
-				return resolved
-			}
-			if resolved := r.tryExtension(tspath.ExtensionJrb, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
-				return resolved
-			}
 		}
 		if extensions&extensionsDeclaration != 0 {
 			if resolved := r.tryExtension(tspath.ExtensionDts, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
@@ -1261,6 +1255,12 @@ func (r *resolutionState) tryAddingExtensions(extensionless string, extensions e
 				return resolved
 			}
 			if resolved := r.tryExtension(tspath.ExtensionTsx, extensionless, originalExtension == tspath.ExtensionTs || originalExtension == tspath.ExtensionDts, onlyRecordFailures); !resolved.shouldContinueSearching() {
+				return resolved
+			}
+			if resolved := r.tryExtension(tspath.ExtensionTslx, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
+				return resolved
+			}
+			if resolved := r.tryExtension(tspath.ExtensionJrb, extensionless, originalExtension == tspath.ExtensionTsx, onlyRecordFailures); !resolved.shouldContinueSearching() {
 				return resolved
 			}
 		}
