@@ -31,6 +31,7 @@ var (
 	AllSupportedExtensions                   = [][]string{{ExtensionTs, ExtensionJrb, ExtensionTslx, ExtensionTsx, ExtensionDts, ExtensionJs, ExtensionJsx}, {ExtensionCts, ExtensionDcts, ExtensionCjs}, {ExtensionMts, ExtensionDmts, ExtensionMjs}}
 	SupportedTSExtensions                    = [][]string{{ExtensionTs, ExtensionJrb, ExtensionTslx, ExtensionTsx, ExtensionDts}, {ExtensionCts, ExtensionDcts}, {ExtensionMts, ExtensionDmts}}
 	SupportedTSExtensionsFlat                = []string{ExtensionTs, ExtensionJrb, ExtensionTslx, ExtensionTsx, ExtensionDts, ExtensionCts, ExtensionDcts, ExtensionMts, ExtensionDmts}
+	SupportedJrbExtensionsFlat               = []string{ExtensionJrb, ExtensionTslx}
 	SupportedJSExtensions                    = [][]string{{ExtensionJs, ExtensionJsx}, {ExtensionMjs}, {ExtensionCjs}}
 	SupportedJSExtensionsFlat                = []string{ExtensionJs, ExtensionJsx, ExtensionMjs, ExtensionCjs}
 	AllSupportedExtensionsWithJson           = slices.Concat(AllSupportedExtensions, [][]string{{ExtensionJson}})
@@ -84,6 +85,10 @@ func TryExtractTSExtension(fileName string) string {
 		}
 	}
 	return ""
+}
+
+func HasJrbFileExtension(path string) bool {
+	return FileExtensionIsOneOf(path, SupportedJrbExtensionsFlat)
 }
 
 func HasTSFileExtension(path string) bool {

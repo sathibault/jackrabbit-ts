@@ -253,11 +253,15 @@ func (p *Program) GetTypeCheckerForFile(file *ast.SourceFile) *checker.Checker {
 func (p *Program) GlobalAnalysis(den *jackrabbit.RabbitDen) {
 	fmt.Fprintf(os.Stderr, "Global analysis pass 1\n")
 	for file, checker := range p.checkersByFile {
-		jackrabbit.AnalyzeSourceFile(den, file, checker)
+		if tspath.HasJrbFileExtension(file.FileName()) {
+			jackrabbit.AnalyzeSourceFile(den, file, checker)
+		}
 	}
 	fmt.Fprintf(os.Stderr, "Global analysis pass 2\n")
 	for file, checker := range p.checkersByFile {
-		jackrabbit.AnalyzeSourcePass2(den, file, checker)
+		if tspath.HasJrbFileExtension(file.FileName()) {
+			jackrabbit.AnalyzeSourcePass2(den, file, checker)
+		}
 	}
 	jackrabbit.FinalizeAnalysis(den)
 }
@@ -266,7 +270,9 @@ func (p *Program) Synthesize(den *jackrabbit.RabbitDen) {
 	fmt.Fprintf(os.Stderr, "Synthesis\n")
 	syn := jackrabbit.NewSynthesizer()
 	for file, checker := range p.checkersByFile {
-		syn.Synthesize(den, file, checker)
+		if tspath.HasJrbFileExtension(file.FileName()) {
+			syn.Synthesize(den, file, checker)
+		}
 	}
 	syn.Finalize()
 }

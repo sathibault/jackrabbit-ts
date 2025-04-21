@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -46,10 +46,12 @@ func NewServer(opts *ServerOptions) *Server {
 	if opts.Cwd == "" {
 		panic("Cwd is required")
 	}
+
 	return &Server{
 		r:                  lsproto.NewBaseReader(opts.In),
 		w:                  lsproto.NewBaseWriter(opts.Out),
 		stderr:             opts.Err,
+		exePath:            filepath.Dir(os.Args[0]),
 		cwd:                opts.Cwd,
 		newLine:            opts.NewLine,
 		fs:                 opts.FS,
@@ -69,6 +71,7 @@ type Server struct {
 	requestTime   time.Time
 
 	cwd                string
+	exePath            string
 	newLine            core.NewLineKind
 	fs                 vfs.FS
 	defaultLibraryPath string
@@ -264,8 +267,7 @@ func (s *Server) handleInlayHint(req *lsproto.RequestMessage) error {
 		return s.sendError(req.ID, err2)
 	}
 
-	exePath := path.Dir(os.Args[0])
-	libPath := path.Join(exePath, "hls")
+	libPath := filepath.Join(s.exePath, "hls")
 	hlsHints := project.LanguageService().ProvideHlsHints(libPath, file.FileName(), pos1, pos2, s.stderr)
 	hints := make([]lsproto.InlayHint, 0, len(hlsHints))
 	for _, info := range hlsHints {
