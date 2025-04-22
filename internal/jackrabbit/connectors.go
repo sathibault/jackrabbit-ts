@@ -5,28 +5,16 @@ import (
 	"strings"
 )
 
-type IoInterfaceClass struct {
-	Name    string
-	Signals []string
-	HLS     *IoInterfaceHls
-}
-
-type IoInterfaceHls struct {
-	Connector string
-	Role      string
-	Aliases   map[string]string
-}
-
-var InterfacesLib = map[string]IoInterfaceClass{
+var InterfacesLib = map[string]*IoInterfaceClass{
 	"StreamIn": {
 		Name:    "StreamIn",
 		Signals: []string{"valid", "accept", "data"},
-		HLS: &IoInterfaceHls{
+		Hls: &HlsInterface{
 			Connector: "HlsStream",
 			Role:      "reader",
 			Aliases: map[string]string{
-				"read_rdy":       "valid",
-				"read_req":       "accept",
+				"read_rdy":         "valid",
+				"read_req":         "accept",
 				"read_r_e_t_u_r_n": "data",
 			},
 		},
@@ -34,7 +22,7 @@ var InterfacesLib = map[string]IoInterfaceClass{
 	"StreamOut": {
 		Name:    "StreamOut",
 		Signals: []string{"valid", "accept", "data"},
-		HLS: &IoInterfaceHls{
+		Hls: &HlsInterface{
 			Connector: "HlsStream",
 			Role:      "writer",
 			Aliases: map[string]string{
@@ -59,7 +47,7 @@ type IMethodParam struct {
 type IMethod struct {
 	Name       string
 	Type       string
-	Parameters []IMethodParam
+	Parameters []*IMethodParam
 	Roles      []string
 	Ready      *int
 	Cycles     *string
@@ -69,24 +57,24 @@ type IMethod struct {
 type IConnector struct {
 	Name       string
 	Roles      []map[string]string
-	Parameters []ITypeParam
+	Parameters []*ITypeParam
 	Methods    []IMethod
 }
 
-var HlsStreamConnector = IConnector{
+var hlsStreamConnector = IConnector{
 	Name: "HlsStream",
 	Roles: []map[string]string{
 		{"name": "reader", "min": "1", "max": "1"},
 		{"name": "writer", "min": "1", "max": "1"},
 	},
-	Parameters: []ITypeParam{
+	Parameters: []*ITypeParam{
 		{Name: "T"},
 	},
 	Methods: []IMethod{
 		{
 			Name:       "read",
 			Type:       "T",
-			Parameters: []IMethodParam{},
+			Parameters: []*IMethodParam{},
 			Out:        strPtr("val"),
 			Roles:      []string{"reader"},
 			Ready:      intPtr(1),
@@ -95,7 +83,7 @@ var HlsStreamConnector = IConnector{
 		{
 			Name: "write",
 			Type: "void",
-			Parameters: []IMethodParam{
+			Parameters: []*IMethodParam{
 				{Name: "val", Mode: "input", Type: "T"},
 			},
 			Roles:  []string{"writer"},
@@ -105,12 +93,12 @@ var HlsStreamConnector = IConnector{
 	},
 }
 
-var HlsConnectors = map[string]IConnector{
-	HlsStreamConnector.Name: HlsStreamConnector,
+var hlsConnectors = map[string]*IConnector{
+	hlsStreamConnector.Name: &hlsStreamConnector,
 }
 
 type ISpecialized struct {
-	Temp IConnector
+	Temp *IConnector
 	Args []any
 	Spec string
 }
@@ -124,7 +112,7 @@ func NewConnectors() *Connectors {
 }
 
 func (c *Connectors) Specialize(name string, args []any) (string, string) {
-	temp, exists := HlsConnectors[name]
+	temp, exists := hlsConnectors[name]
 	if !exists {
 		panic(fmt.Sprintf("Undefined connector: %s", name))
 	}
@@ -162,7 +150,7 @@ func genType(spec string, xout *XMLBuilder) {
 }
 
 func (c *Connectors) GenerateTarget(xout *XMLBuilder) {
-	for _, temp := range HlsConnectors {
+	for _, temp := range hlsConnectors {
 		xc := xout.Ele("connector", map[string]string{
 			"class": temp.Name,
 			"gen":   temp.Name,
@@ -218,7 +206,7 @@ func (c *Connectors) GenerateTarget(xout *XMLBuilder) {
 			width := 0
 			if retType != "void" {
 				typ = "int" // or "unsigned int" based on parseTypeSpec
-				width = 32 // placeholder
+				width = 32  // placeholder
 			}
 			xm := xs.Ele("method", map[string]string{
 				"name":  meth.Name,
@@ -234,8 +222,8 @@ func (c *Connectors) GenerateTarget(xout *XMLBuilder) {
 					"name":   param.Name,
 					"type":   param.Mode,
 					"signed": "true",
-					"width": "32",
-					"carg":  intStr(carg),
+					"width":  "32",
+					"carg":   intStr(carg),
 				})
 			}
 			if retType != "void" && meth.Out != nil {
@@ -243,7 +231,7 @@ func (c *Connectors) GenerateTarget(xout *XMLBuilder) {
 					"name":   *meth.Out,
 					"type":   "return",
 					"signed": "true",
-					"width": "32",
+					"width":  "32",
 				})
 			}
 		}
@@ -260,9 +248,11 @@ func joinRoles(roles []string) string {
 func uint32Str(a uint32) string {
 	return fmt.Sprintf("%d", a)
 }
+
 func intStr(a int) string {
 	return fmt.Sprintf("%d", a)
 }
+
 func boolStr(b bool) string {
 	if b {
 		return "true"

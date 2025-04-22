@@ -296,8 +296,8 @@ func (c *Checker) isSimpleTypeRelatedTo(source *Type, target *Type, relation *Re
 		}
 	}
 
-	if s&TypeFlagsNumber != 0 || s&TypeFlagsNumberLiteral != 0 || s&TypeFlagsBigIntLike != 0 || s&TypeFlagsEnum != 0 {
-		if IsBitType(target) {
+	if s&TypeFlagsNumber != 0 || s&TypeFlagsNumberLiteral != 0 || s&TypeFlagsBigIntLike != 0 || s&TypeFlagsEnum != 0 || s&TypeFlagsBooleanLike != 0 {
+		if IsBitType(target) || IsRtlBitType(target) {
 			return true
 		}
 	}

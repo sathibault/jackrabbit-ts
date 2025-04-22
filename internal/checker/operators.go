@@ -1,7 +1,9 @@
 package checker
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
@@ -204,6 +206,11 @@ func extendedMultiplyOverload(leftType *Type, left *ast.Node, rightType *Type, r
 			return makeBinaryResultType(leftType, rightType, rw)
 		}
 	}
+	if IsBitType(leftType) || IsRtlType(leftType) {
+		fmt.Fprintln(os.Stderr, "Binary fail", leftType.checker.TypeToString(leftType), rightType.checker.TypeToString(rightType))
+		DumpType(leftType)
+		DumpType(rightType)
+	}
 	return nil
 }
 
@@ -297,6 +304,9 @@ func assignableToRtlType(source *Type, target *Type) bool {
 			return true
 		}
 	}
+	fmt.Fprintln(os.Stderr, "RTL fail")
+	DumpType(source)
+	DumpType(target)
 	return false
 }
 
@@ -358,6 +368,16 @@ type rtl_table struct {
 }
 
 var rtlCache = make(map[TypeId]rtl_table)
+
+func IsRtlBitType(t *Type) bool {
+	if IsRtlType(t) && ResolvedTypeArguments(t) != nil {
+		arg := ResolvedTypeArguments(t)[0]
+		if IsBitType(arg) {
+			return true
+		}
+	}
+	return false
+}
 
 func IsRtlType(t *Type) bool {
 	_, ok := rtlCache[t.id]

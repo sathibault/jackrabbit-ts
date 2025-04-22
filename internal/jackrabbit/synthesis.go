@@ -27,6 +27,10 @@ func NewSynthesizer() *Synthesizer {
 func (syn *Synthesizer) Synthesize(den *RabbitDen, sourceFile *ast.SourceFile, tc *checker.Checker) {
 	sd := den.GetSourceDescriptor(sourceFile)
 	if sd != nil {
+		var rtlGen *RtlGenerator
+		if sd.HasModuleType("rtl") {
+			rtlGen = NewRtlGenerator(den, sourceFile, tc)
+		}
 		visit := func(node *ast.Node) bool {
 			if ast.IsVariableStatement(node) {
 				// generate globals
@@ -38,6 +42,9 @@ func (syn *Synthesizer) Synthesize(den *RabbitDen, sourceFile *ast.SourceFile, t
 					if fd.InHlsSet() {
 						hlsGen := NewHlsProcGen(den, decl, fd, tc, true)
 						syn.sm.Xic.Generate(hlsGen)
+					}
+					if fd.moduleType != nil && *fd.moduleType == "rtl" {
+						rtlGen.Generate(decl, fd)
 					}
 				}
 			}

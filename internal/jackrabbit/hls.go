@@ -734,7 +734,7 @@ func (h *HlsProcGen) emitCallExpression(expr *ast.CallExpression, lhs *ast.Array
 			}
 
 			attrs := map[string]string{"proc": ident.Text}
-			argTypes := checker.GetDeclarationParameterTypes(h.tc, analysis.declaration)
+			argTypes, _ := checker.GetDeclarationParameterTypes(h.tc, analysis.declaration)
 
 			if rt != nil {
 				rtDesc := checker.RequireTypeDescriptor(h.tc, rt, nil)

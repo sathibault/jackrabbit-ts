@@ -95,14 +95,24 @@ type TypeDescriptor struct {
 	Shape    []uint32
 }
 
-func GetDeclarationParameterTypes(c *Checker, node *ast.Node) []*Type {
+func GetResolvedParameterTypes(c *Checker, node *ast.Node) ([]*Type, *Type) {
+	s := c.getResolvedSignature(node, nil, CheckModeNormal)
+	types := make([]*Type, 0, len(s.parameters))
+	for _, p := range s.parameters {
+		t := c.getTypeOfSymbol(p)
+		types = append(types, t)
+	}
+	return types, c.getReturnTypeOfSignature(s)
+}
+
+func GetDeclarationParameterTypes(c *Checker, node *ast.Node) ([]*Type, *Type) {
 	s := c.getSignatureFromDeclaration(node)
 	types := make([]*Type, 0, len(s.parameters))
 	for _, p := range s.parameters {
 		t := c.getTypeOfSymbol(p)
 		types = append(types, t)
 	}
-	return types
+	return types, c.getReturnTypeOfSignature(s)
 }
 
 func GetDeclarationReturnType(c *Checker, node *ast.FunctionDeclaration) *Type {
@@ -169,6 +179,10 @@ func GetTypeDescriptor(tc *Checker, t0 *Type, expr *ast.Expression, debug bool) 
 		fmt.Fprintln(os.Stderr, "UNRECOGNIZED TYPE", tc.TypeToString(t))
 	}
 	return nil
+}
+
+func GetObjectTypeProperties(tc *Checker, t *Type) []*ast.Symbol {
+	return tc.getPropertiesOfType(t)
 }
 
 func IsArrayType(tc *Checker, t *Type) bool {
@@ -397,6 +411,19 @@ func checkBaseType(t, query *Type, base string, depth int) bool {
 		})
 	}
 	return false
+}
+
+func GetReferenceTypeSymbol(t *Type) *ast.Symbol {
+	if t.alias != nil && t.alias.symbol != nil {
+		return t.alias.symbol
+	}
+	if t.objectFlags&ObjectFlagsReference != 0 {
+		data := t.AsTypeReference()
+		if data.symbol != nil {
+			return data.symbol
+		}
+	}
+	return nil
 }
 
 func HasInterface(t *Type, name string) bool {
