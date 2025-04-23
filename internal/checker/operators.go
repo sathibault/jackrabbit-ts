@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/core"
@@ -367,7 +368,10 @@ type rtl_table struct {
 	rtl *TypeReference
 }
 
-var rtlCache = make(map[TypeId]rtl_table)
+var (
+	rtlCache      = make(map[TypeId]rtl_table)
+	rtlCacheMutex = sync.RWMutex{}
+)
 
 func IsRtlBitType(t *Type) bool {
 	if IsRtlType(t) && ResolvedTypeArguments(t) != nil {
@@ -379,11 +383,23 @@ func IsRtlBitType(t *Type) bool {
 	return false
 }
 
+func isCachedRtlType(t *Type) bool {
+	hit := false
+	rtlCacheMutex.RLock()
+	if cached, ok := rtlCache[t.id]; ok {
+		if cached.t == t {
+			hit = true
+		}
+	}
+	rtlCacheMutex.RUnlock()
+	return hit
+}
+
 func IsRtlType(t *Type) bool {
-	_, ok := rtlCache[t.id]
-	if ok && rtlCache[t.id].t == t {
+	if isCachedRtlType(t) {
 		return true
 	}
+
 	var check func(*Type, *Type, int) bool
 	check = func(t *Type, query *Type, depth int) bool {
 		if t == nil {
@@ -398,7 +414,9 @@ func IsRtlType(t *Type) bool {
 		if t.objectFlags&ObjectFlagsReference != 0 {
 			data := t.AsTypeReference()
 			if data != nil && data.symbol != nil && data.symbol.Name == "RtlExpr" {
+				rtlCacheMutex.Lock()
 				rtlCache[query.id] = rtl_table{query, data}
+				rtlCacheMutex.Unlock()
 				return true
 			}
 		}
