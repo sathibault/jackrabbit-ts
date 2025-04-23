@@ -304,9 +304,9 @@ func assignableToRtlType(source *Type, target *Type) bool {
 			return true
 		}
 	}
-	fmt.Fprintln(os.Stderr, "RTL fail")
-	DumpType(source)
-	DumpType(target)
+	// fmt.Fprintln(os.Stderr, "RTL fail")
+	// DumpType(source)
+	// DumpType(target)
 	return false
 }
 
@@ -404,18 +404,47 @@ func IsRtlType(t *Type) bool {
 		}
 		if t.objectFlags&(ObjectFlagsClassOrInterface|ObjectFlagsReference) != 0 {
 			target := getTargetType(t)
-			return target != nil && t.checker != nil && core.Some(t.checker.getBaseTypes(target), func(t *Type) bool {
-				return check(t, query, depth+1)
-			})
+			if target != nil && t.checker != nil {
+				if core.Some(t.checker.getBaseTypes(target), func(t *Type) bool {
+					return check(t, query, depth+1)
+				}) {
+					return true
+				}
+				if core.Some(t.checker.getImplementsTypes(target), func(t *Type) bool {
+					return check(t, query, depth+1)
+				}) {
+					return true
+				}
+			}
 		}
 		if t.flags&TypeFlagsIntersection != 0 {
-			return core.Some(t.AsIntersectionType().types, func(t *Type) bool {
+			if core.Some(t.AsIntersectionType().types, func(t *Type) bool {
 				return check(t, query, depth+1)
-			})
+			}) {
+				return true
+			}
 		}
 		return false
 	}
 	return (t.objectFlags&ObjectFlagsReference) != 0 && check(t, t, 0)
+}
+
+func (c *Checker) getImplementsTypes(t *Type) []*Type {
+	implemented := make([]*Type, 8)
+	if t.symbol != nil && len(t.symbol.Declarations) > 0 {
+		for _, n := range t.symbol.Declarations {
+			if ast.IsClassLike(n) {
+				implementedTypeNodes := ast.GetImplementsHeritageClauseElements(n)
+				for _, typeRefNode := range implementedTypeNodes {
+					implementsType := c.getTypeFromTypeNode(typeRefNode)
+					if !c.isErrorType(implementsType) {
+						implemented = append(implemented, implementsType)
+					}
+				}
+			}
+		}
+	}
+	return implemented
 }
 
 func rtlBaseType(t *Type) *TypeReference {
