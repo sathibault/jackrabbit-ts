@@ -406,7 +406,8 @@ func NewFunctionAnalysis(
 
 func (fa *FunctionAnalysis) Visit(node *ast.Node) bool {
 	if fa.descriptor.moduleType != nil && *fa.descriptor.moduleType == "logic" {
-		if call := node.AsCallExpression(); call != nil {
+		if ast.IsCallExpression(node) {
+			call := node.AsCallExpression()
 			callee := fa.den.getCalleeDescriptor(call, fa.tc)
 			if callee != nil && callee.moduleType != nil && *callee.moduleType != "test" {
 				callee.UpdateUsers(fa.descriptor)

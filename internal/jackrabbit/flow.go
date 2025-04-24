@@ -226,7 +226,7 @@ func (f *FlowAnalysis) Visit(n *ast.Node) {
 
 	case ast.KindVariableDeclaration:
 		decl := n.AsVariableDeclaration()
-		if decl.Initializer != nil {
+		if decl.Symbol != nil && decl.Initializer != nil {
 			val := toAbstract(decl.Initializer, f.tc)
 			if val != nil {
 				f.store.Variables[decl.Symbol.Name] = val
