@@ -149,7 +149,7 @@ func GetTypeDescriptor(tc *Checker, t0 *Type, expr *ast.Expression, debug bool) 
 		}
 		if desc != nil {
 			if expr != nil {
-				desc.Shape = ArrayExprShape(expr, tc)
+				desc.Shape = ArrayExprShape(expr, tc, debug)
 				if len(desc.Shape) == dim {
 					return desc
 				}
@@ -215,13 +215,16 @@ func IsArrayConstructor(expr *ast.Expression) bool {
 	return false
 }
 
-func ArrayExprShape(expr *ast.Expression, tc *Checker) []uint32 {
+func ArrayExprShape(expr *ast.Expression, tc *Checker, debug bool) []uint32 {
 	var shape []uint32
 
 	if expr.Kind == ast.KindCallExpression {
 		call := expr.AsCallExpression()
 		if call.Expression.Kind == ast.KindIdentifier {
 			id := call.Expression.AsIdentifier()
+			if debug {
+				fmt.Fprintln(os.Stderr, "=", id.Text)
+			}
 			if id.Text == "Array" && len(call.Arguments.Nodes) == 1 {
 				arg := call.Arguments.Nodes[0]
 				val := TsEvaluateExpr(arg, tc)
@@ -232,12 +235,30 @@ func ArrayExprShape(expr *ast.Expression, tc *Checker) []uint32 {
 					} else {
 						fmt.Fprintln(os.Stderr, "CAST ERR")
 					}
+				} else {
+					fmt.Fprintln(os.Stderr, "arg is not constant", arg.Kind.String())
+				}
+			} else if id.Text == "array" && len(call.Arguments.Nodes) >= 1 {
+				arg := call.Arguments.Nodes[0]
+				val := TsEvaluateExpr(arg, tc)
+				if val != nil {
+					if x, ok := NumberToUint32(val); ok {
+						shape = append(shape, x)
+						return shape
+					} else {
+						fmt.Fprintln(os.Stderr, "CAST ERR")
+					}
+				} else {
+					fmt.Fprintln(os.Stderr, "arg is not constant", arg.Kind.String())
 				}
 			}
 		}
 	}
 
 	if expr.Kind == ast.KindArrayLiteralExpression {
+		if debug {
+			fmt.Fprintln(os.Stderr, "array literal")
+		}
 		for expr.Kind == ast.KindArrayLiteralExpression {
 			lit := expr.AsArrayLiteralExpression()
 			n := len(lit.Elements.Nodes)

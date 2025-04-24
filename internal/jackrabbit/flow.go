@@ -274,7 +274,7 @@ func (fa *FlowAnalysis) evalShape(expr *ast.Expression) []int {
 	if ast.IsIdentifier(expr) {
 		return fa.lookupShape(expr.AsIdentifier().Text)
 	}
-	shape := checker.ArrayExprShape(expr, fa.tc)
+	shape := checker.ArrayExprShape(expr, fa.tc, false)
 	return core.Map(shape, uint32ToInt)
 }
 
@@ -355,7 +355,7 @@ func toAbstract(expr *ast.Expression, tc *checker.Checker) AbstractValue {
 		return &AbstractArrayValue{Elements: elements}
 
 	case ast.KindCallExpression:
-		shape := checker.ArrayExprShape(expr, tc)
+		shape := checker.ArrayExprShape(expr, tc, false)
 		if shape != nil {
 			return &AbstractUnknownValue{Shape: core.Map(shape, uint32ToInt)}
 		}
