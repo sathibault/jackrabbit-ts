@@ -15,8 +15,8 @@ import (
 
 type RtlGenerator struct {
 	den     *RabbitDen
-	Tc      *checker.Checker
-	OutFile *os.File
+	tc      *checker.Checker
+	outFile *os.File
 }
 
 func NewRtlGenerator(den *RabbitDen, sourceFile *ast.SourceFile, tc *checker.Checker) *RtlGenerator {
@@ -32,8 +32,8 @@ func NewRtlGenerator(den *RabbitDen, sourceFile *ast.SourceFile, tc *checker.Che
 
 	return &RtlGenerator{
 		den:     den,
-		Tc:      tc,
-		OutFile: file,
+		tc:      tc,
+		outFile: file,
 	}
 }
 
@@ -49,9 +49,9 @@ func (r *RtlGenerator) getDescriptor(desc *FunctionDescriptor, call *ast.CallExp
 	var sig []*checker.Type
 	var rt *checker.Type
 	if isGeneric {
-		sig, rt = checker.GetResolvedParameterTypes(r.Tc, call.AsNode())
+		sig, rt = checker.GetResolvedParameterTypes(r.tc, call.AsNode())
 	} else {
-		sig, rt = checker.GetDeclarationParameterTypes(r.Tc, desc.declaration)
+		sig, rt = checker.GetDeclarationParameterTypes(r.tc, desc.declaration)
 	}
 
 	isHls := desc.moduleType != nil && *desc.moduleType == "hls"
@@ -66,35 +66,35 @@ func (r *RtlGenerator) getDescriptor(desc *FunctionDescriptor, call *ast.CallExp
 		if isGeneric && call != nil {
 			typ = sig[i]
 		} else {
-			typ = r.Tc.GetTypeAtLocation(param)
+			typ = r.tc.GetTypeAtLocation(param)
 		}
 		callParams = append(callParams, &RtlIo{
-			Name: pname,
-			Type: buildRtlIo(Client, typ, param, isHls, r.Tc),
+			name: pname,
+			Type: buildRtlIo(Client, typ, param, isHls, r.tc),
 		})
 	}
 
 	var returnParams []*RtlIo
 	prefix := strings.ToLower(name)
-	if checker.IsTypeReference(rt) && checker.IsTupleType(r.Tc, rt) {
+	if checker.IsTypeReference(rt) && checker.IsTupleType(r.tc, rt) {
 		elems := checker.ResolvedTypeArguments(rt)
 		for i, el := range elems {
 			returnParams = append(returnParams, &RtlIo{
-				Name: fmt.Sprintf("%s_%d", prefix, i),
-				Type: buildRtlIo(Provider, el, decl, isHls, r.Tc),
+				name: fmt.Sprintf("%s_%d", prefix, i),
+				Type: buildRtlIo(Provider, el, decl, isHls, r.tc),
 			})
 		}
 	} else if (rt.Flags() & checker.TypeFlagsVoid) == 0 {
 		returnParams = append(returnParams, &RtlIo{
-			Name: fmt.Sprintf("%s_0", prefix),
-			Type: buildRtlIo(Provider, rt, decl, isHls, r.Tc),
+			name: fmt.Sprintf("%s_0", prefix),
+			Type: buildRtlIo(Provider, rt, decl, isHls, r.tc),
 		})
 	}
 
 	modDesc := &RtlModDescriptor{
-		Name:         name,
-		CallParams:   callParams,
-		ReturnParams: returnParams,
+		name:         name,
+		callParams:   callParams,
+		returnParams: returnParams,
 	}
 
 	if !isGeneric {
@@ -111,54 +111,54 @@ func (r *RtlGenerator) Generate(decl *ast.FunctionDeclaration, desc *FunctionDes
 
 type RtlProcGen struct {
 	den        *RabbitDen
-	Decl       *ast.FunctionDeclaration
-	Desc       *FunctionDescriptor
-	Gen        *RtlGenerator
-	Tc         *checker.Checker
-	OutFile    *os.File
-	Symtab     *Namer
-	Signals    map[string]*SignalInfo
-	Interfaces map[string]RtlIoType
-	Bundles    map[string]map[string]RtlIoType
+	decl       *ast.FunctionDeclaration
+	desc       *FunctionDescriptor
+	gen        *RtlGenerator
+	tc         *checker.Checker
+	outFile    *os.File
+	symtab     *Namer
+	signals    map[string]*SignalInfo
+	interfaces map[string]RtlIoType
+	bundles    map[string]map[string]RtlIoType
 	orderMax   int
 }
 
 func NewRtlProcGen(den *RabbitDen, decl *ast.FunctionDeclaration, desc *FunctionDescriptor, gen *RtlGenerator) *RtlProcGen {
 	return &RtlProcGen{
 		den:        den,
-		Decl:       decl,
-		Desc:       desc,
-		Gen:        gen,
-		Tc:         gen.Tc,
-		OutFile:    gen.OutFile,
-		Symtab:     NewNamer(),
-		Signals:    map[string]*SignalInfo{},
-		Interfaces: map[string]RtlIoType{},
-		Bundles:    map[string]map[string]RtlIoType{},
+		decl:       decl,
+		desc:       desc,
+		gen:        gen,
+		tc:         gen.tc,
+		outFile:    gen.outFile,
+		symtab:     NewNamer(),
+		signals:    map[string]*SignalInfo{},
+		interfaces: map[string]RtlIoType{},
+		bundles:    map[string]map[string]RtlIoType{},
 	}
 }
 
 func (r *RtlProcGen) defineSignal(name string, info *SignalInfo) {
-	_, ok := r.Signals[name]
+	_, ok := r.signals[name]
 	assert(!ok, "Multiple definitions of ", name)
-	r.Signals[name] = info
+	r.signals[name] = info
 }
 
 func (r *RtlProcGen) addDriver(sig *SignalInfo, d *Driver) {
-	if len(sig.Drivers) == 0 {
+	if len(sig.drivers) == 0 {
 		r.orderMax += 1
 		sig.order = r.orderMax
 	}
-	sig.Drivers = append(sig.Drivers, d)
+	sig.drivers = append(sig.drivers, d)
 }
 
 func (r *RtlProcGen) addStateDriver(name string, state []string, expr *ast.Expression) {
-	sig, ok := r.Signals[name]
+	sig, ok := r.signals[name]
 	assert(ok, "Undesigned signal name:", name)
 	r.addDriver(sig, &Driver{
-		Expr:    expr,
-		State:   state,
-		Delayed: false,
+		expr:    expr,
+		state:   state,
+		delayed: false,
 	})
 }
 
@@ -167,12 +167,12 @@ func (r *RtlProcGen) genExpression(expr *ast.Expression) string {
 }
 
 func (r *RtlProcGen) Generate() {
-	desc := r.Gen.getDescriptor(r.Desc, nil)
-	name := desc.Name
-	callParams := desc.CallParams
-	retParams := desc.ReturnParams
+	desc := r.gen.getDescriptor(r.desc, nil)
+	name := desc.name
+	callParams := desc.callParams
+	retParams := desc.returnParams
 
-	fmt.Fprintf(r.OutFile, "module %s(\n  input clk,\n  input reset", name)
+	fmt.Fprintf(r.outFile, "module %s(\n  input clk,\n  input reset", name)
 
 	ios := []*IRtlPort{}
 	for _, io := range append(callParams, retParams...) {
@@ -181,24 +181,24 @@ func (r *RtlProcGen) Generate() {
 
 	for _, port := range ios {
 		rng := ""
-		if port.Desc.Width > 1 {
-			rng = fmt.Sprintf(" [%d:0]", port.Desc.Width-1)
+		if port.desc.Width > 1 {
+			rng = fmt.Sprintf(" [%d:0]", port.desc.Width-1)
 		}
-		fmt.Fprintf(r.OutFile, ",\n  %s logic%s %s", string(port.Mode), rng, port.Name)
+		fmt.Fprintf(r.outFile, ",\n  %s logic%s %s", string(port.mode), rng, port.name)
 	}
-	fmt.Fprint(r.OutFile, ");\n\n")
+	fmt.Fprint(r.outFile, ");\n\n")
 
 	// Register non-input call parameters as signals
 	for _, param := range callParams {
-		if sig, ok := param.Type.(RtlSignalIo); ok && sig.Mode != Input {
-			r.Signals[param.Name] = &SignalInfo{Name: param.Name, Desc: sig.Desc, Drivers: []*Driver{}}
+		if sig, ok := param.Type.(RtlSignalIo); ok && sig.mode != Input {
+			r.signals[param.name] = &SignalInfo{name: param.name, desc: sig.desc, drivers: []*Driver{}}
 		}
 	}
 
-	if r.Decl.Body != nil {
-		block := r.Decl.Body.AsBlock()
+	if r.decl.Body != nil {
+		block := r.decl.Body.AsBlock()
 		r.emitBlockVariables(block)
-		fmt.Fprint(r.OutFile, "\n")
+		fmt.Fprint(r.outFile, "\n")
 		r.collectBlock(block)
 
 		for _, stmt := range block.Statements.Nodes {
@@ -207,9 +207,9 @@ func (r *RtlProcGen) Generate() {
 				if ast.IsCallExpression(expr) {
 					fun := expr.AsCallExpression().Expression
 					if ast.IsIdentifier(fun) && fun.AsIdentifier().Text == "dfa" {
-						dfa := NewDfaGen(r, r.OutFile)
+						dfa := NewDfaGen(r, r.outFile)
 						dfa.Generate(expr)
-						fmt.Fprint(r.OutFile, "\n")
+						fmt.Fprint(r.outFile, "\n")
 					}
 				}
 			}
@@ -219,24 +219,24 @@ func (r *RtlProcGen) Generate() {
 
 	r.emitSortedSignals()
 
-	if r.Decl.Body != nil {
-		block := r.Decl.Body.AsBlock()
+	if r.decl.Body != nil {
+		block := r.decl.Body.AsBlock()
 		for _, stmt := range block.Statements.Nodes {
 			if ast.IsReturnStatement(stmt) && stmt.AsReturnStatement().Expression != nil {
-				fmt.Fprint(r.OutFile, "\n")
+				fmt.Fprint(r.outFile, "\n")
 				r.emitReturnIo(retParams[0], stmt.AsReturnStatement().Expression)
 			}
 		}
 	}
 
-	fmt.Fprintln(r.OutFile, "endmodule")
+	fmt.Fprintln(r.outFile, "endmodule")
 }
 
 func (r *RtlProcGen) emitSortedSignals() {
-	lst := make([]*SignalInfo, len(r.Signals))
+	lst := make([]*SignalInfo, len(r.signals))
 
 	i := 0
-	for _, v := range r.Signals {
+	for _, v := range r.signals {
 		lst[i] = v
 		i++
 	}
@@ -254,124 +254,124 @@ func (r *RtlProcGen) emitSortedSignals() {
 }
 
 func (r *RtlProcGen) emitSignal(sig *SignalInfo, para bool) bool {
-	if len(sig.Drivers) == 0 {
+	if len(sig.drivers) == 0 {
 		return para
 	}
 
 	// Case 1: DFA driven signal with multiple states
 	dfaDrivers := 0
-	for _, d := range sig.Drivers {
-		if len(d.State) > 0 {
+	for _, d := range sig.drivers {
+		if len(d.state) > 0 {
 			dfaDrivers++
 		}
 	}
-	if dfaDrivers != 0 && len(sig.Drivers) > 1 {
-		assert(sig.Init == nil, "Continuous signal cannot have default value:", sig.Name)
-		assert(dfaDrivers == len(sig.Drivers), "Cannot drive dfa output from outside dfa:", sig.Name)
+	if dfaDrivers != 0 && len(sig.drivers) > 1 {
+		assert(sig.init == nil, "Continuous signal cannot have default value:", sig.name)
+		assert(dfaDrivers == len(sig.drivers), "Cannot drive dfa output from outside dfa:", sig.name)
 
-		stateVar := sig.Drivers[0].State[0]
-		for _, d := range sig.Drivers {
-			if d.State[0] != stateVar {
-				assert(false, "Cannot drive output from multiple dfa:", sig.Name)
+		stateVar := sig.drivers[0].state[0]
+		for _, d := range sig.drivers {
+			if d.state[0] != stateVar {
+				assert(false, "Cannot drive output from multiple dfa:", sig.name)
 			}
 		}
 
 		if para {
-			fmt.Fprint(r.OutFile, "\n")
+			fmt.Fprint(r.outFile, "\n")
 		}
 
-		fmt.Fprintln(r.OutFile, "  always_comb")
-		fmt.Fprintf(r.OutFile, "    case (%s)\n", stateVar)
-		for i, d := range sig.Drivers {
+		fmt.Fprintln(r.outFile, "  always_comb")
+		fmt.Fprintf(r.outFile, "    case (%s)\n", stateVar)
+		for i, d := range sig.drivers {
 			label := "default"
-			if i < len(sig.Drivers)-1 {
-				label = d.State[1]
+			if i < len(sig.drivers)-1 {
+				label = d.state[1]
 			}
-			fmt.Fprintf(r.OutFile, "      %s:\n", label)
-			rhs := r.buildExpression(d.Expr, false, nil, false)
-			fmt.Fprintf(r.OutFile, "        %s <= %s;\n", sig.Name, rhs)
+			fmt.Fprintf(r.outFile, "      %s:\n", label)
+			rhs := r.buildExpression(d.expr, false, nil, false)
+			fmt.Fprintf(r.outFile, "        %s <= %s;\n", sig.name, rhs)
 		}
-		fmt.Fprintln(r.OutFile, "    endcase")
-		fmt.Fprintln(r.OutFile, "")
+		fmt.Fprintln(r.outFile, "    endcase")
+		fmt.Fprintln(r.outFile, "")
 		return false
 	}
 
 	// Case 2: Continuous assignment
 	nonDelayed := 0
-	for _, d := range sig.Drivers {
-		if !d.Delayed {
+	for _, d := range sig.drivers {
+		if !d.delayed {
 			nonDelayed++
 		}
 	}
 	if nonDelayed > 0 {
-		assert(sig.Init == nil, "Continuous signal cannot have default value:", sig.Name)
-		assert(nonDelayed == len(sig.Drivers), "Continuous signal cannot have delayed driver:", sig.Name)
+		assert(sig.init == nil, "Continuous signal cannot have default value:", sig.name)
+		assert(nonDelayed == len(sig.drivers), "Continuous signal cannot have delayed driver:", sig.name)
 
-		if len(sig.Drivers) == 1 {
-			rhs := r.buildExpression(sig.Drivers[0].Expr, false, nil, false)
-			fmt.Fprintf(r.OutFile, "  assign %s = %s;\n", sig.Name, rhs)
+		if len(sig.drivers) == 1 {
+			rhs := r.buildExpression(sig.drivers[0].expr, false, nil, false)
+			fmt.Fprintf(r.outFile, "  assign %s = %s;\n", sig.name, rhs)
 			return true
 		}
 
 		if para {
-			fmt.Fprint(r.OutFile, "\n")
+			fmt.Fprint(r.outFile, "\n")
 		}
 
-		fmt.Fprintln(r.OutFile, "  always_comb begin")
-		for i, d := range sig.Drivers {
-			if i < len(sig.Drivers)-1 {
-				cond := r.buildExpression(d.Cond, false, nil, false)
+		fmt.Fprintln(r.outFile, "  always_comb begin")
+		for i, d := range sig.drivers {
+			if i < len(sig.drivers)-1 {
+				cond := r.buildExpression(d.cond, false, nil, false)
 				if i == 0 {
-					fmt.Fprintf(r.OutFile, "    if (%s)\n", cond)
+					fmt.Fprintf(r.outFile, "    if (%s)\n", cond)
 				} else {
-					fmt.Fprintf(r.OutFile, "    else if (%s)\n", cond)
+					fmt.Fprintf(r.outFile, "    else if (%s)\n", cond)
 				}
 			} else {
-				fmt.Fprintln(r.OutFile, "    else")
+				fmt.Fprintln(r.outFile, "    else")
 			}
-			rhs := r.buildExpression(d.Expr, false, nil, false)
-			fmt.Fprintf(r.OutFile, "      %s <= %s;\n", sig.Name, rhs)
+			rhs := r.buildExpression(d.expr, false, nil, false)
+			fmt.Fprintf(r.outFile, "      %s <= %s;\n", sig.name, rhs)
 		}
-		fmt.Fprintln(r.OutFile, "  end\n")
+		fmt.Fprint(r.outFile, "  end\n\n")
 		return false
 	}
 
 	if para {
-		fmt.Fprint(r.OutFile, "\n")
+		fmt.Fprint(r.outFile, "\n")
 	}
-	fmt.Fprint(r.OutFile, "  always @(posedge clk)\n    ")
-	if len(sig.Drivers) == 1 && sig.Drivers[0].Cond == nil && sig.Init == nil {
-		rhs := r.buildExpression(sig.Drivers[0].Expr, true, nil, false)
-		fmt.Fprintf(r.OutFile, "%s <= %s;\n\n", sig.Name, rhs)
+	fmt.Fprint(r.outFile, "  always @(posedge clk)\n    ")
+	if len(sig.drivers) == 1 && sig.drivers[0].cond == nil && sig.init == nil {
+		rhs := r.buildExpression(sig.drivers[0].expr, true, nil, false)
+		fmt.Fprintf(r.outFile, "%s <= %s;\n\n", sig.name, rhs)
 		return false
 	}
 	first := true
-	if sig.Init != nil {
-		fmt.Fprint(r.OutFile, "if (reset)\n    ")
-		val := buildConstant(sig.Desc, sig.Init, false)
-		fmt.Fprintf(r.OutFile, "  %s <= %s;\n", sig.Name, val)
+	if sig.init != nil {
+		fmt.Fprint(r.outFile, "if (reset)\n    ")
+		val := buildConstant(sig.desc, sig.init, false)
+		fmt.Fprintf(r.outFile, "  %s <= %s;\n", sig.name, val)
 		first = false
 	}
-	for _, d := range sig.Drivers {
+	for _, d := range sig.drivers {
 		if !first {
-			fmt.Fprint(r.OutFile, "    ")
+			fmt.Fprint(r.outFile, "    ")
 		}
-		if d.Cond != nil {
+		if d.cond != nil {
 			if !first {
-				fmt.Fprint(r.OutFile, "else ")
+				fmt.Fprint(r.outFile, "else ")
 			}
-			cond := r.buildExpression(d.Cond, false, nil, false)
-			fmt.Fprintf(r.OutFile, "if (%s)\n    ", cond)
+			cond := r.buildExpression(d.cond, false, nil, false)
+			fmt.Fprintf(r.outFile, "if (%s)\n    ", cond)
 		}
-		rhs := r.buildExpression(d.Expr, true, nil, false)
+		rhs := r.buildExpression(d.expr, true, nil, false)
 		addr := ""
-		if d.Addr != nil {
-			addr = fmt.Sprintf("[%s]", r.buildExpression(d.Addr, false, nil, true))
+		if d.addr != nil {
+			addr = fmt.Sprintf("[%s]", r.buildExpression(d.addr, false, nil, true))
 		}
-		fmt.Fprintf(r.OutFile, "  %s%s <= %s;\n", sig.Name, addr, rhs)
+		fmt.Fprintf(r.outFile, "  %s%s <= %s;\n", sig.name, addr, rhs)
 		first = false
 	}
-	fmt.Fprintln(r.OutFile, "")
+	fmt.Fprintln(r.outFile, "")
 	return false
 }
 
@@ -389,24 +389,25 @@ func (r *RtlProcGen) emitReturnIo(io *RtlIo, expr *ast.Node) {
 					accept := args[0].AsIdentifier().Text
 					valid := r.buildExpression(args[1], false, nil, false)
 					data := r.buildExpression(args[2], false, nil, false)
-					fmt.Fprintf(r.OutFile, "  assign %s = %s_accept;\n", accept, io.Name)
-					fmt.Fprintf(r.OutFile, "  assign %s_valid = %s;\n", io.Name, valid)
-					fmt.Fprintf(r.OutFile, "  assign %s_data = %s;\n", io.Name, data)
+					fmt.Fprintf(r.outFile, "  assign %s = %s_accept;\n", accept, io.name)
+					fmt.Fprintf(r.outFile, "  assign %s_valid = %s;\n", io.name, valid)
+					fmt.Fprintf(r.outFile, "  assign %s_data = %s;\n", io.name, data)
 					return
 				case "createStreamOut":
 					accept := r.buildExpression(args[0], false, nil, false)
 					valid := args[1].AsIdentifier().Text
 					data := args[2].AsIdentifier().Text
-					fmt.Fprintf(r.OutFile, "  assign %s_accept = %s;\n", io.Name, accept)
-					fmt.Fprintf(r.OutFile, "  assign %s = %s_valid;\n", valid, io.Name)
-					fmt.Fprintf(r.OutFile, "  assign %s = %s_data;\n", data, io.Name)
+					fmt.Fprintf(r.outFile, "  assign %s_accept = %s;\n", io.name, accept)
+					fmt.Fprintf(r.outFile, "  assign %s = %s_valid;\n", valid, io.name)
+					fmt.Fprintf(r.outFile, "  assign %s = %s_data;\n", data, io.name)
 					return
 				}
 			}
 		}
 	}
 
-	fmt.Fprint(r.OutFile, "  // TODO: handle emitReturnIo fallback case\n")
+	fmt.Fprintln(os.Stderr, expr)
+	assert(false, "Unexpected logic module return value")
 }
 
 func (r *RtlProcGen) emitStatementInstances(stmt *ast.Node) {
@@ -426,7 +427,7 @@ func (r *RtlProcGen) emitVariableDeclarationInstances(stmt *ast.VariableStatemen
 			fun := call.Expression
 			if ast.IsIdentifier(fun) {
 
-				callee := r.den.GetFunctionIdentDescriptor(fun.AsIdentifier(), r.Tc)
+				callee := r.den.GetFunctionIdentDescriptor(fun.AsIdentifier(), r.tc)
 				if callee != nil && callee.moduleType != nil {
 					r.emitInstantiation(callee, call, decl.Name())
 				}
@@ -445,7 +446,7 @@ func (r *RtlProcGen) emitExpressionInstances(expr *ast.Node) {
 
 	if ast.IsIdentifier(fun) {
 		ident := fun.AsIdentifier()
-		callee := r.den.GetFunctionIdentDescriptor(ident, r.Tc)
+		callee := r.den.GetFunctionIdentDescriptor(ident, r.tc)
 		if callee != nil && callee.moduleType != nil {
 			r.emitInstantiation(callee, call, nil)
 		}
@@ -454,44 +455,44 @@ func (r *RtlProcGen) emitExpressionInstances(expr *ast.Node) {
 
 func (r *RtlProcGen) emitInstantiation(desc *FunctionDescriptor, call *ast.CallExpression, lhs *ast.BindingName) {
 	if desc.moduleType != nil && *desc.moduleType == "test" {
-		fmt.Fprintf(r.OutFile, "  // TODO %s module %s\n\n", desc.moduleType, desc.methodName)
+		fmt.Fprintf(r.outFile, "  // TODO %s module %s\n\n", *desc.moduleType, desc.methodName)
 		return
 	}
 
-	rtlDesc := r.Gen.getDescriptor(desc, call)
+	rtlDesc := r.gen.getDescriptor(desc, call)
 	assert(rtlDesc != nil)
 
-	name := rtlDesc.Name
-	params := rtlDesc.CallParams
+	name := rtlDesc.name
+	params := rtlDesc.callParams
 
 	if len(params) != len(call.Arguments.Nodes) {
 		panic(fmt.Sprintf("Wrong number of arguments to %s", name))
 	}
 
-	inst := r.Symtab.GenNewName("i_" + name)
-	fmt.Fprintf(r.OutFile, "  %s %s(\n    .clk(clk),\n    .reset(reset)", name, inst)
+	inst := r.symtab.GenNewName("i_" + name)
+	fmt.Fprintf(r.outFile, "  %s %s(\n    .clk(clk),\n    .reset(reset)", name, inst)
 
 	for i, param := range params {
 		arg := call.Arguments.Nodes[i]
 		if _, ok := param.Type.(RtlSignalIo); ok {
 			expr := r.buildExpression(arg, false, nil, false)
-			fmt.Fprintf(r.OutFile, ",\n    .%s(%s)", param.Name, expr)
+			fmt.Fprintf(r.outFile, ",\n    .%s(%s)", param.name, expr)
 		} else {
 			if ast.IsIdentifier(arg) {
-				r.emitVariableMap(rtlDesc.CallParams[i], arg.AsIdentifier().Text, false)
+				r.emitVariableMap(rtlDesc.callParams[i], arg.AsIdentifier().Text, false)
 			} else if ast.IsPropertyAccessExpression(arg) {
 				prop := call.Expression.AsPropertyAccessExpression()
 				obj := prop.Expression
 				field := prop.Name().Text()
 				if ast.IsIdentifier(obj) {
 					local := obj.AsIdentifier().Text
-					bundle := r.Bundles[local]
+					bundle := r.bundles[local]
 					if bundle == nil {
-						panic(fmt.Sprintf("Unexpected actual expression for %s parameter %s", name, rtlDesc.CallParams[i].Name))
+						panic(fmt.Sprintf("Unexpected actual expression for %s parameter %s", name, rtlDesc.callParams[i].name))
 					}
-					r.emitBundleMap(rtlDesc.CallParams[i], fmt.Sprintf("%s_%s", local, field), bundle, false)
+					r.emitBundleMap(rtlDesc.callParams[i], fmt.Sprintf("%s_%s", local, field), bundle, false)
 				} else {
-					panic(fmt.Sprintf("Unexpected actual expression for %s parameter %s", name, rtlDesc.CallParams[i].Name))
+					panic(fmt.Sprintf("Unexpected actual expression for %s parameter %s", name, rtlDesc.callParams[i].name))
 				}
 			}
 		}
@@ -499,22 +500,22 @@ func (r *RtlProcGen) emitInstantiation(desc *FunctionDescriptor, call *ast.CallE
 
 	if lhs != nil && lhs.Kind == ast.KindIdentifier {
 		target := lhs.AsIdentifier().Text
-		if len(rtlDesc.ReturnParams) == 1 {
-			r.emitVariableMap(rtlDesc.ReturnParams[0], target, false)
+		if len(rtlDesc.returnParams) == 1 {
+			r.emitVariableMap(rtlDesc.returnParams[0], target, false)
 		} else {
 			panic(fmt.Sprintf("Expected single return from %s", name))
 		}
-	} else if len(rtlDesc.ReturnParams) > 0 {
+	} else if len(rtlDesc.returnParams) > 0 {
 		panic(fmt.Sprintf("Module %s with return must be used in declaration", name))
 	}
 
-	fmt.Fprint(r.OutFile, ");\n\n")
+	fmt.Fprint(r.outFile, ");\n\n")
 }
 
 func (r *RtlProcGen) emitVariableMap(formal *RtlIo, actual string, first bool) {
-	if io, ok := r.Interfaces[actual]; ok {
+	if io, ok := r.interfaces[actual]; ok {
 		r.emitInterfaceMap(formal, actual, io, first)
-	} else if bundle, ok := r.Bundles[actual]; ok {
+	} else if bundle, ok := r.bundles[actual]; ok {
 		r.emitBundleMap(formal, actual, bundle, first)
 	} else {
 		panic(fmt.Sprintf("Unexpected variable %s in module call", actual))
@@ -525,17 +526,17 @@ func (r *RtlProcGen) emitInterfaceMap(formal *RtlIo, actual string, actualType R
 	switch at := actualType.(type) {
 	case RtlSignalIo:
 		if !first {
-			fmt.Fprint(r.OutFile, ",")
+			fmt.Fprint(r.outFile, ",")
 		}
-		fmt.Fprintf(r.OutFile, "\n    .%s(%s)", formal.Name, actual)
+		fmt.Fprintf(r.outFile, "\n    .%s(%s)", formal.name, actual)
 	case RtlClassIo:
 		fclass := formal.Type.(RtlClassIo)
-		for i, fsig := range fclass.Signals {
-			asig := at.Signals[i]
+		for i, fsig := range fclass.signals {
+			asig := at.signals[i]
 			if i > 0 || !first {
-				fmt.Fprint(r.OutFile, ",")
+				fmt.Fprint(r.outFile, ",")
 			}
-			fmt.Fprintf(r.OutFile, "\n    .%s_%s(%s_%s)", formal.Name, fsig.Name, actual, asig.Name)
+			fmt.Fprintf(r.outFile, "\n    .%s_%s(%s_%s)", formal.name, fsig.name, actual, asig.name)
 		}
 	default:
 		panic("Unsupported interface map kind")
@@ -544,23 +545,23 @@ func (r *RtlProcGen) emitInterfaceMap(formal *RtlIo, actual string, actualType R
 
 func (r *RtlProcGen) emitBundleMap(formal *RtlIo, actual string, actualType map[string]RtlIoType, first bool) {
 	fbundle := formal.Type.(RtlBundleIo)
-	for _, member := range fbundle.Members {
-		aio, ok := actualType[member.Name]
+	for _, member := range fbundle.members {
+		aio, ok := actualType[member.name]
 		if !ok {
-			panic(fmt.Sprintf("Missing bundle member %s in actual %s", member.Name, actual))
+			panic(fmt.Sprintf("Missing bundle member %s in actual %s", member.name, actual))
 		}
 		switch aio := aio.(type) {
 		case RtlSignalIo:
 			if !first {
-				fmt.Fprint(r.OutFile, ",")
+				fmt.Fprint(r.outFile, ",")
 			}
-			fmt.Fprintf(r.OutFile, "\n    .%s_%s(%s_%s)", formal.Name, member.Name, actual, member.Name)
+			fmt.Fprintf(r.outFile, "\n    .%s_%s(%s_%s)", formal.name, member.name, actual, member.name)
 		case RtlClassIo:
-			for _, io := range aio.Signals {
+			for _, io := range aio.signals {
 				if !first {
-					fmt.Fprint(r.OutFile, ",")
+					fmt.Fprint(r.outFile, ",")
 				}
-				fmt.Fprintf(r.OutFile, "\n    .%s_%s_%s(%s_%s_%s)", formal.Name, member.Name, io.Name, actual, member.Name, io.Name)
+				fmt.Fprintf(r.outFile, "\n    .%s_%s_%s(%s_%s_%s)", formal.name, member.name, io.name, actual, member.name, io.name)
 				first = false
 			}
 		default:
@@ -573,7 +574,7 @@ func (r *RtlProcGen) emitBundleMap(formal *RtlIo, actual string, actualType map[
 func (r *RtlProcGen) buildExpression(expr *ast.Node, delayed bool, tt *checker.Type, decimal bool) string {
 	switch expr.Kind {
 	case ast.KindIdentifier:
-		ty := r.Tc.GetTypeAtLocation(expr)
+		ty := r.tc.GetTypeAtLocation(expr)
 		if isSignalType(ty) || isPortType(ty) {
 			return expr.AsIdentifier().Text
 		}
@@ -608,7 +609,7 @@ func (r *RtlProcGen) buildExpression(expr *ast.Node, delayed bool, tt *checker.T
 			method := prop.Name().Text()
 			if ast.IsIdentifier(obj) {
 				name := obj.AsIdentifier().Text
-				typ := r.Tc.GetTypeAtLocation(obj)
+				typ := r.tc.GetTypeAtLocation(obj)
 				if method == "bit" && isSignalType(typ) {
 					arg := r.buildExpression(call.Arguments.Nodes[0], delayed, nil, true)
 					return fmt.Sprintf("%s[%s]", name, arg)
@@ -628,9 +629,9 @@ func (r *RtlProcGen) buildExpression(expr *ast.Node, delayed bool, tt *checker.T
 	case ast.KindNumericLiteral:
 		var desc *checker.TypeDescriptor
 		if tt != nil {
-			desc = checker.GetTypeDescriptor(r.Tc, tt, expr, false)
+			desc = checker.GetTypeDescriptor(r.tc, tt, expr, false)
 		} else {
-			desc = checker.GetTypeDescriptor(r.Tc, r.Tc.GetTypeAtLocation(expr), expr, false)
+			desc = checker.GetTypeDescriptor(r.tc, r.tc.GetTypeAtLocation(expr), expr, false)
 		}
 		if desc != nil {
 			return buildConstant(desc, expr, decimal)
@@ -767,9 +768,9 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 			op := pa.Name().Text()
 			if ast.IsIdentifier(pa.Expression) {
 				name := pa.Expression.AsIdentifier().Text
-				typ := r.Tc.GetTypeAtLocation(pa.Expression)
+				typ := r.tc.GetTypeAtLocation(pa.Expression)
 				if op == "is" && (isSignalType(typ) || isPortType(typ)) {
-					sig, ok := r.Signals[name]
+					sig, ok := r.signals[name]
 					if ok {
 						if len(call.Arguments.Nodes) == 2 {
 							cond = call.Arguments.Nodes[1]
@@ -777,22 +778,22 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 							cond = cond.AsArrowFunction().Body
 						}
 						r.addDriver(sig, &Driver{
-							Expr:    call.Arguments.Nodes[0],
-							Cond:    cond,
-							Delayed: false,
+							expr:    call.Arguments.Nodes[0],
+							cond:    cond,
+							delayed: false,
 						})
 					}
 				} else if op == "write" && isBlockRamType(typ) {
-					sig, ok := r.Signals[name]
+					sig, ok := r.signals[name]
 					if ok {
 						if len(call.Arguments.Nodes) == 3 {
 							cond = call.Arguments.Nodes[2]
 						}
 						r.addDriver(sig, &Driver{
-							Addr:    call.Arguments.Nodes[0],
-							Expr:    call.Arguments.Nodes[1],
-							Cond:    cond,
-							Delayed: true,
+							addr:    call.Arguments.Nodes[0],
+							expr:    call.Arguments.Nodes[1],
+							cond:    cond,
+							delayed: true,
 						})
 					}
 				}
@@ -802,7 +803,7 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 				if ast.IsIdentifier(pa0.Expression) {
 					name := pa0.Expression.AsIdentifier().Text
 					if op0 == "next" && op == "is" {
-						sig, ok := r.Signals[name]
+						sig, ok := r.signals[name]
 						if ok {
 							if len(call.Arguments.Nodes) == 2 {
 								cond = call.Arguments.Nodes[1]
@@ -810,9 +811,9 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 								cond = cond.AsArrowFunction().Body
 							}
 							r.addDriver(sig, &Driver{
-								Expr:    call.Arguments.Nodes[0],
-								Cond:    cond,
-								Delayed: true,
+								expr:    call.Arguments.Nodes[0],
+								cond:    cond,
+								delayed: true,
 							})
 						}
 					}
@@ -843,7 +844,7 @@ func (r *RtlProcGen) emitStatementVariables(stmt *ast.Node) {
 					enums = append(enums, t.AsLiteralTypeNode().Literal.Text())
 				}
 			}
-			fmt.Fprintf(r.OutFile, "  typedef enum {%s} %s_t;\n\n", strings.Join(enums, ", "), td.Name().Text())
+			fmt.Fprintf(r.outFile, "  typedef enum {%s} %s_t;\n\n", strings.Join(enums, ", "), td.Name().Text())
 		}
 	}
 }
@@ -854,22 +855,22 @@ func (r *RtlProcGen) emitVariableDeclarationListVariables(lst *ast.VariableDecla
 			continue // skip non-simple bindings for now
 		}
 
-		name := r.Symtab.GenName(decl.AsVariableDeclaration())
-		typ := r.Tc.GetTypeAtLocation(decl)
+		name := r.symtab.GenName(decl.AsVariableDeclaration())
+		typ := r.tc.GetTypeAtLocation(decl)
 
 		if isSignalType(typ) && len(checker.ResolvedTypeArguments(typ)) > 0 {
 			elem := checker.ResolvedTypeArguments(typ)[0]
 			if elem.Flags()&checker.TypeFlagsUnion != 0 {
-				fmt.Fprintf(r.OutFile, "  %s_t %s;\n", checker.GetReferenceTypeSymbol(elem).Name, name)
+				fmt.Fprintf(r.outFile, "  %s_t %s;\n", checker.GetReferenceTypeSymbol(elem).Name, name)
 			} else {
-				desc := checker.RequireTypeDescriptor(r.Tc, elem, decl.Initializer())
+				desc := checker.RequireTypeDescriptor(r.tc, elem, decl.Initializer())
 				init := getSignalInitializer(decl.Initializer())
-				r.defineSignal(name, &SignalInfo{Name: name, Desc: desc, Init: init, Drivers: []*Driver{}})
+				r.defineSignal(name, &SignalInfo{name: name, desc: desc, init: init, drivers: []*Driver{}})
 				rng := ""
 				if desc.Width > 1 {
 					rng = fmt.Sprintf(" [%d:0]", desc.Width-1)
 				}
-				fmt.Fprintf(r.OutFile, "  logic%s %s;\n", rng, name)
+				fmt.Fprintf(r.outFile, "  logic%s %s;\n", rng, name)
 			}
 		} else if isBlockRamType(typ) && len(checker.ResolvedTypeArguments(typ)) > 0 {
 			elem := checker.ResolvedTypeArguments(typ)[0]
@@ -882,24 +883,24 @@ func (r *RtlProcGen) emitVariableDeclarationListVariables(lst *ast.VariableDecla
 			depth, ok := checker.NumberToUint32(checker.GetConstExpression(opts[0]))
 			assert(ok, "BlockRam depth is not a number")
 
-			desc := checker.RequireTypeDescriptor(r.Tc, elem, init)
+			desc := checker.RequireTypeDescriptor(r.tc, elem, init)
 
 			rng := ""
 			if desc.Width > 1 {
 				rng = fmt.Sprintf(" [%d:0]", desc.Width-1)
 			}
 
-			r.defineSignal(name, &SignalInfo{Name: name, Desc: desc, Depth: &depth, Drivers: []*Driver{}})
-			fmt.Fprintf(r.OutFile, "  logic%s %s[%d];\n", rng, name, depth)
+			r.defineSignal(name, &SignalInfo{name: name, desc: desc, depth: &depth, drivers: []*Driver{}})
+			fmt.Fprintf(r.outFile, "  logic%s %s[%d];\n", rng, name, depth)
 		} else if isStreamType(typ) {
-			io, ok := getPortType("client", typ, r.Tc, false)
+			io, ok := getPortType("client", typ, r.tc, false)
 			assert(ok, "Unspected logic module IO type")
 			r.emitIoSignals(name, io)
-			r.Interfaces[name] = io
+			r.interfaces[name] = io
 		} else if checker.IsObjectType(typ) {
-			bundle, ok := buildBundle(typ, decl, r.Tc)
+			bundle, ok := buildBundle(typ, decl, r.tc)
 			if ok {
-				r.Bundles[name] = bundle
+				r.bundles[name] = bundle
 				for field, sig := range bundle {
 					r.emitIoSignals(fmt.Sprintf("%s_%s", name, field), sig)
 				}
@@ -914,13 +915,13 @@ func (r *RtlProcGen) emitIoSignals(name string, io RtlIoType) {
 	switch t := io.(type) {
 	case RtlSignalIo:
 		rng := ""
-		if t.Desc.Width > 1 {
-			rng = fmt.Sprintf(" [%d:0]", t.Desc.Width-1)
+		if t.desc.Width > 1 {
+			rng = fmt.Sprintf(" [%d:0]", t.desc.Width-1)
 		}
-		fmt.Fprintf(r.OutFile, "  logic%s %s;\n", rng, name)
+		fmt.Fprintf(r.outFile, "  logic%s %s;\n", rng, name)
 	case RtlClassIo:
-		for _, sig := range t.Signals {
-			r.emitIoSignals(fmt.Sprintf("%s_%s", name, sig.Name), sig.Type)
+		for _, sig := range t.signals {
+			r.emitIoSignals(fmt.Sprintf("%s_%s", name, sig.name), sig.Type)
 		}
 	default:
 		panic("Unhandled IO signal type")
@@ -928,20 +929,20 @@ func (r *RtlProcGen) emitIoSignals(name string, io RtlIoType) {
 }
 
 type SignalInfo struct {
-	Name    string
-	Desc    *checker.TypeDescriptor
-	Drivers []*Driver
-	Depth   *uint32
-	Init    *ast.Node
+	name    string
+	desc    *checker.TypeDescriptor
+	drivers []*Driver
+	depth   *uint32
+	init    *ast.Node
 	order   int
 }
 
 type Driver struct {
-	Expr    *ast.Node
-	Addr    *ast.Node
-	Cond    *ast.Node
-	State   []string
-	Delayed bool
+	expr    *ast.Node
+	addr    *ast.Node
+	cond    *ast.Node
+	state   []string
+	delayed bool
 }
 
 // PortMode represents the direction of a port
@@ -963,13 +964,13 @@ const (
 )
 
 type RtlModDescriptor struct {
-	Name         string
-	CallParams   []*RtlIo
-	ReturnParams []*RtlIo
+	name         string
+	callParams   []*RtlIo
+	returnParams []*RtlIo
 }
 
 type RtlIo struct {
-	Name string
+	name string
 	Type RtlIoType
 }
 
@@ -980,9 +981,9 @@ type RtlIoType interface {
 // Signal
 
 type RtlSignalIo struct {
-	Kind string // "signal"
-	Mode PortMode
-	Desc *checker.TypeDescriptor
+	kind string // "signal"
+	mode PortMode
+	desc *checker.TypeDescriptor
 }
 
 func (RtlSignalIo) isRtlIoType() {}
@@ -990,10 +991,10 @@ func (RtlSignalIo) isRtlIoType() {}
 // Class
 
 type RtlClassIo struct {
-	Kind    string // "class"
-	Name    string
-	Signals []*RtlIo
-	Proto   *IoInterface
+	kind    string // "class"
+	name    string
+	signals []*RtlIo
+	proto   *IoInterface
 }
 
 func (RtlClassIo) isRtlIoType() {}
@@ -1001,65 +1002,57 @@ func (RtlClassIo) isRtlIoType() {}
 // Bundle
 
 type RtlBundleIo struct {
-	Kind    string // "bundle"
-	Members []*RtlIo
+	kind    string // "bundle"
+	members []*RtlIo
 }
 
 func (RtlBundleIo) isRtlIoType() {}
 
 type IRtlPort struct {
-	Name string
-	Mode PortMode
-	Desc *checker.TypeDescriptor
+	name string
+	mode PortMode
+	desc *checker.TypeDescriptor
 }
 
 type IoInterface struct {
-	Params []*checker.TypeDescriptor
-	Cls    *IoInterfaceClass
+	params []*checker.TypeDescriptor
+	cls    *IoInterfaceClass
 }
 
 type IoInterfaceClass struct {
-	Name    string
-	Hls     *HlsInterface
-	Signals []string
+	name    string
+	hls     *HlsInterface
+	signals []string
 }
 
 type HlsInterface struct {
-	Connector string
-	Role      string
-	Aliases   map[string]string
-}
-
-func flattenIos(ios []*RtlIo) []*IRtlPort {
-	var flat []*IRtlPort
-	for _, io := range ios {
-		flat = append(flat, flattenIo(io)...)
-	}
-	return flat
+	connector string
+	role      string
+	aliases   map[string]string
 }
 
 func flattenIo(io *RtlIo) []*IRtlPort {
 	switch typ := io.Type.(type) {
 	case RtlSignalIo:
 		return []*IRtlPort{{
-			Name: io.Name,
-			Mode: typ.Mode,
-			Desc: typ.Desc,
+			name: io.name,
+			mode: typ.mode,
+			desc: typ.desc,
 		}}
 	case RtlClassIo:
 		var ports []*IRtlPort
-		for _, sig := range typ.Signals {
+		for _, sig := range typ.signals {
 			for _, p := range flattenIo(sig) {
-				p.Name = io.Name + "_" + p.Name
+				p.name = io.name + "_" + p.name
 				ports = append(ports, p)
 			}
 		}
 		return ports
 	case RtlBundleIo:
 		var ports []*IRtlPort
-		for _, member := range typ.Members {
+		for _, member := range typ.members {
 			for _, p := range flattenIo(member) {
-				p.Name = io.Name + "_" + p.Name
+				p.name = io.name + "_" + p.name
 				ports = append(ports, p)
 			}
 		}
@@ -1079,11 +1072,11 @@ func buildRtlIo(role IoRole, ty *checker.Type, node *ast.Node, hlsStyle bool, tc
 		if bundle, ok := buildBundle(ty, node, tc); ok {
 			members := make([]*RtlIo, 0, len(bundle))
 			for name, typ := range bundle {
-				members = append(members, &RtlIo{Name: name, Type: typ})
+				members = append(members, &RtlIo{name: name, Type: typ})
 			}
 			return RtlBundleIo{
-				Kind:    "bundle",
-				Members: members,
+				kind:    "bundle",
+				members: members,
 			}
 		}
 	}
@@ -1106,9 +1099,9 @@ func getPortType(role IoRole, ty *checker.Type, tc *checker.Checker, hlsStyle bo
 			return nil, false
 		}
 		return RtlSignalIo{
-			Kind: "signal",
-			Mode: mode,
-			Desc: desc,
+			kind: "signal",
+			mode: mode,
+			desc: desc,
 		}, true
 	}
 
@@ -1124,26 +1117,26 @@ func getPortType(role IoRole, ty *checker.Type, tc *checker.Checker, hlsStyle bo
 			dir := core.IfElse(sym == "StreamIn", core.IfElse(role == Client, "input", "output"), core.IfElse(role == Client, "output", "input"))
 			if dir == "input" {
 				signals = []*RtlIo{
-					{Name: "valid", Type: RtlSignalIo{"signal", Input, &checker.TypeDescriptor{IsSigned: false, Width: 1}}},
-					{Name: "accept", Type: RtlSignalIo{"signal", Output, &checker.TypeDescriptor{IsSigned: false, Width: 1}}},
-					{Name: "data", Type: RtlSignalIo{"signal", Input, desc}},
+					{name: "valid", Type: RtlSignalIo{"signal", Input, &checker.TypeDescriptor{IsSigned: false, Width: 1}}},
+					{name: "accept", Type: RtlSignalIo{"signal", Output, &checker.TypeDescriptor{IsSigned: false, Width: 1}}},
+					{name: "data", Type: RtlSignalIo{"signal", Input, desc}},
 				}
 			} else {
 				signals = []*RtlIo{
-					{Name: "valid", Type: RtlSignalIo{"signal", Output, &checker.TypeDescriptor{IsSigned: false, Width: 1}}},
-					{Name: "accept", Type: RtlSignalIo{"signal", Input, &checker.TypeDescriptor{IsSigned: false, Width: 1}}},
-					{Name: "data", Type: RtlSignalIo{"signal", Output, desc}},
+					{name: "valid", Type: RtlSignalIo{"signal", Output, &checker.TypeDescriptor{IsSigned: false, Width: 1}}},
+					{name: "accept", Type: RtlSignalIo{"signal", Input, &checker.TypeDescriptor{IsSigned: false, Width: 1}}},
+					{name: "data", Type: RtlSignalIo{"signal", Output, desc}},
 				}
 			}
 		}
 
 		return RtlClassIo{
-			Kind:    "class",
-			Name:    sym,
-			Signals: signals,
-			Proto: &IoInterface{
-				Params: []*checker.TypeDescriptor{desc},
-				Cls:    cls,
+			kind:    "class",
+			name:    sym,
+			signals: signals,
+			proto: &IoInterface{
+				params: []*checker.TypeDescriptor{desc},
+				cls:    cls,
 			},
 		}, true
 	}
@@ -1152,12 +1145,12 @@ func getPortType(role IoRole, ty *checker.Type, tc *checker.Checker, hlsStyle bo
 }
 
 func getHlsSignals(cls *IoInterfaceClass, args []*checker.TypeDescriptor) []*RtlIo {
-	if cls.Hls == nil {
+	if cls.hls == nil {
 		panic("not an HLS interface")
 	}
-	conn := hlsConnectors[cls.Hls.Connector]
+	conn := hlsConnectors[cls.hls.connector]
 	if conn == nil {
-		panic("missing connector: " + cls.Hls.Connector)
+		panic("missing connector: " + cls.hls.connector)
 	}
 
 	typeMap := map[string]string{}
@@ -1173,43 +1166,43 @@ func getHlsSignals(cls *IoInterfaceClass, args []*checker.TypeDescriptor) []*Rtl
 
 	signalMap := map[string]*RtlIo{}
 	for _, meth := range conn.Methods {
-		if !contains(meth.Roles, cls.Hls.Role) {
+		if !contains(meth.Roles, cls.hls.role) {
 			continue
 		}
 
 		// method-level IOs
 		req := &RtlIo{
-			Name: meth.Name + "_req",
+			name: meth.Name + "_req",
 			Type: RtlSignalIo{
-				Kind: "signal",
-				Mode: Output,
-				Desc: &checker.TypeDescriptor{IsSigned: false, Width: 1},
+				kind: "signal",
+				mode: Output,
+				desc: &checker.TypeDescriptor{IsSigned: false, Width: 1},
 			},
 		}
-		signalMap[mapName(req.Name, cls.Hls.Aliases)] = req
+		signalMap[mapName(req.name, cls.hls.aliases)] = req
 
 		if meth.Ready != nil && *meth.Ready != 0 {
 			rdy := &RtlIo{
-				Name: meth.Name + "_rdy",
+				name: meth.Name + "_rdy",
 				Type: RtlSignalIo{
-					Kind: "signal",
-					Mode: Input,
-					Desc: &checker.TypeDescriptor{IsSigned: false, Width: 1},
+					kind: "signal",
+					mode: Input,
+					desc: &checker.TypeDescriptor{IsSigned: false, Width: 1},
 				},
 			}
-			signalMap[mapName(rdy.Name, cls.Hls.Aliases)] = rdy
+			signalMap[mapName(rdy.name, cls.hls.aliases)] = rdy
 		}
 
 		if meth.Cycles != nil && strings.Contains(*meth.Cycles, "*") {
 			ack := &RtlIo{
-				Name: meth.Name + "_ack",
+				name: meth.Name + "_ack",
 				Type: RtlSignalIo{
-					Kind: "signal",
-					Mode: Input,
-					Desc: &checker.TypeDescriptor{IsSigned: false, Width: 1},
+					kind: "signal",
+					mode: Input,
+					desc: &checker.TypeDescriptor{IsSigned: false, Width: 1},
 				},
 			}
-			signalMap[mapName(ack.Name, cls.Hls.Aliases)] = ack
+			signalMap[mapName(ack.name, cls.hls.aliases)] = ack
 		}
 
 		for _, param := range meth.Parameters {
@@ -1218,14 +1211,14 @@ func getHlsSignals(cls *IoInterfaceClass, args []*checker.TypeDescriptor) []*Rtl
 				ptype = t
 			}
 			signal := &RtlIo{
-				Name: param.Name,
+				name: param.Name,
 				Type: RtlSignalIo{
-					Kind: "signal",
-					Mode: Output,
-					Desc: parseTypeSpec(ptype),
+					kind: "signal",
+					mode: Output,
+					desc: parseTypeSpec(ptype),
 				},
 			}
-			signalMap[mapName(signal.Name, cls.Hls.Aliases)] = signal
+			signalMap[mapName(signal.name, cls.hls.aliases)] = signal
 		}
 
 		if meth.Type != "void" {
@@ -1234,19 +1227,19 @@ func getHlsSignals(cls *IoInterfaceClass, args []*checker.TypeDescriptor) []*Rtl
 				rtype = t
 			}
 			ret := &RtlIo{
-				Name: meth.Name + "_r_e_t_u_r_n",
+				name: meth.Name + "_r_e_t_u_r_n",
 				Type: RtlSignalIo{
-					Kind: "signal",
-					Mode: Input,
-					Desc: parseTypeSpec(rtype),
+					kind: "signal",
+					mode: Input,
+					desc: parseTypeSpec(rtype),
 				},
 			}
-			signalMap[mapName(ret.Name, cls.Hls.Aliases)] = ret
+			signalMap[mapName(ret.name, cls.hls.aliases)] = ret
 		}
 	}
 
-	signals := make([]*RtlIo, len(cls.Signals))
-	for i, name := range cls.Signals {
+	signals := make([]*RtlIo, len(cls.signals))
+	for i, name := range cls.signals {
 		signals[i] = signalMap[name]
 	}
 	return signals

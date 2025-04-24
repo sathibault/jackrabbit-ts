@@ -21,8 +21,8 @@ type DfaGen struct {
 }
 
 type StatementContext struct {
-	Position   int
-	Statements []*ast.Statement
+	position   int
+	statements []*ast.Statement
 }
 
 func NewDfaGen(host RtlHost, outFile *os.File) *DfaGen {
@@ -91,15 +91,15 @@ func (gen *DfaGen) emitStatement(position int, stmt *ast.Node, statements []*ast
 			assert(statements != nil, "statements list is required for STATE")
 
 			gen.emitCase(4, lit.Text, &StatementContext{
-				Position:   position + 1,
-				Statements: statements,
+				position:   position + 1,
+				statements: statements,
 			})
 
 			gen.outFile.WriteString("      end\n")
 		}
 	} else if ast.IsIfStatement(stmt) {
 		ifStmt := stmt.AsIfStatement()
-		gen.stack = append(gen.stack, &StatementContext{Position: position, Statements: statements})
+		gen.stack = append(gen.stack, &StatementContext{position: position, statements: statements})
 		gen.emitStatement(0, ifStmt.ThenStatement, nil)
 		if ifStmt.ElseStatement != nil {
 			gen.emitStatement(0, ifStmt.ElseStatement, nil)
@@ -107,17 +107,17 @@ func (gen *DfaGen) emitStatement(position int, stmt *ast.Node, statements []*ast
 		gen.stack = gen.stack[:len(gen.stack)-1]
 	} else if stmt.Kind == ast.KindWhileStatement {
 		whileStmt := stmt.AsWhileStatement()
-		gen.stack = append(gen.stack, &StatementContext{Position: position, Statements: statements})
+		gen.stack = append(gen.stack, &StatementContext{position: position, statements: statements})
 		gen.emitStatement(0, whileStmt.Statement, nil)
 		gen.stack = gen.stack[:len(gen.stack)-1]
 	} else if ast.IsForStatement(stmt) {
 		forStmt := stmt.AsForStatement()
-		gen.stack = append(gen.stack, &StatementContext{Position: position, Statements: statements})
+		gen.stack = append(gen.stack, &StatementContext{position: position, statements: statements})
 		gen.emitStatement(0, forStmt.Statement, nil)
 		gen.stack = gen.stack[:len(gen.stack)-1]
 	} else if ast.IsForInOrOfStatement(stmt) {
 		forInStmt := stmt.AsForInOrOfStatement()
-		gen.stack = append(gen.stack, &StatementContext{Position: position, Statements: statements})
+		gen.stack = append(gen.stack, &StatementContext{position: position, statements: statements})
 		gen.emitStatement(0, forInStmt.Statement, nil)
 		gen.stack = gen.stack[:len(gen.stack)-1]
 	} else if ast.IsBlock(stmt) {
@@ -131,8 +131,8 @@ func (g *DfaGen) emitCase(indent int, name string, cur *StatementContext) {
 	context := make([]*StatementContext, len(g.stack))
 	copy(context, g.stack)
 
-	position := cur.Position
-	statements := cur.Statements
+	position := cur.position
+	statements := cur.statements
 
 	for position < len(statements) {
 		stmt := statements[position]
@@ -185,7 +185,7 @@ func (g *DfaGen) emitCase(indent int, name string, cur *StatementContext) {
 
 		prnt := context[len(context)-1]
 		context = context[:len(context)-1]
-		stmt := prnt.Statements[prnt.Position]
+		stmt := prnt.statements[prnt.position]
 
 		if stmt.Kind == ast.KindWhileStatement {
 			whileStmt := stmt.AsWhileStatement()
@@ -211,8 +211,8 @@ func (g *DfaGen) emitCase(indent int, name string, cur *StatementContext) {
 			}
 		}
 
-		position = prnt.Position + 1
-		statements = prnt.Statements
+		position = prnt.position + 1
+		statements = prnt.statements
 	}
 
 	g.closeElse(indent, elseLevel)
@@ -233,8 +233,8 @@ const (
 )
 
 func (e *DfaGen) emitTransitions(indent int, cursor *StatementContext, elseLevel int, preCondition string) (FollowState, int) {
-	position := cursor.Position
-	statements := cursor.Statements
+	position := cursor.position
+	statements := cursor.statements
 
 	for position < len(statements) {
 		stmt := statements[position]
@@ -275,7 +275,7 @@ func (e *DfaGen) emitTransitions(indent int, cursor *StatementContext, elseLevel
 
 			assert(ast.IsBlock(whileStmt.Statement), "Expecting block in dfa loop")
 			block := whileStmt.Statement.AsBlock()
-			state, newElseLevel := e.emitTransitions(indent, &StatementContext{Position: 0, Statements: block.Statements.Nodes}, elseLevel, preCondition)
+			state, newElseLevel := e.emitTransitions(indent, &StatementContext{position: 0, statements: block.Statements.Nodes}, elseLevel, preCondition)
 			assert(state == NoFollow)
 			elseLevel = newElseLevel
 
@@ -299,7 +299,7 @@ func (e *DfaGen) emitTransitions(indent int, cursor *StatementContext, elseLevel
 				e.writeIndent(indent + elseLevel)
 				e.outFile.WriteString(fmt.Sprintf("if (%s) begin\n", cond))
 
-				state1, newElseLevel := e.emitTransitions(indent+1, &StatementContext{Position: 0, Statements: thenBlock.Statements.Nodes}, elseLevel, preCondition)
+				state1, newElseLevel := e.emitTransitions(indent+1, &StatementContext{position: 0, statements: thenBlock.Statements.Nodes}, elseLevel, preCondition)
 				assert(state1 == NoFollow)
 				elseLevel = newElseLevel
 
@@ -310,7 +310,7 @@ func (e *DfaGen) emitTransitions(indent int, cursor *StatementContext, elseLevel
 					assert(ast.IsBlock(ifStmt.ElseStatement), "Expecting block in dfa if")
 					elseBlock := ifStmt.ElseStatement.AsBlock()
 
-					state2, _ := e.emitTransitions(indent+1, &StatementContext{Position: 0, Statements: elseBlock.Statements.Nodes}, elseLevel, preCondition)
+					state2, _ := e.emitTransitions(indent+1, &StatementContext{position: 0, statements: elseBlock.Statements.Nodes}, elseLevel, preCondition)
 					assert(state2 == NoFollow)
 
 					e.writeIndent(indent + elseLevel)
@@ -323,7 +323,7 @@ func (e *DfaGen) emitTransitions(indent int, cursor *StatementContext, elseLevel
 				elseLevel++
 
 			} else {
-				return e.emitTransitions(indent, &StatementContext{Position: 0, Statements: thenBlock.Statements.Nodes}, elseLevel, preCondition)
+				return e.emitTransitions(indent, &StatementContext{position: 0, statements: thenBlock.Statements.Nodes}, elseLevel, preCondition)
 			}
 		} else {
 			assert(ast.IsExpressionStatement(stmt), "Unexpected dfa statement")

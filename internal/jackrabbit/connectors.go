@@ -7,12 +7,12 @@ import (
 
 var InterfacesLib = map[string]*IoInterfaceClass{
 	"StreamIn": {
-		Name:    "StreamIn",
-		Signals: []string{"valid", "accept", "data"},
-		Hls: &HlsInterface{
-			Connector: "HlsStream",
-			Role:      "reader",
-			Aliases: map[string]string{
+		name:    "StreamIn",
+		signals: []string{"valid", "accept", "data"},
+		hls: &HlsInterface{
+			connector: "HlsStream",
+			role:      "reader",
+			aliases: map[string]string{
 				"read_rdy":         "valid",
 				"read_req":         "accept",
 				"read_r_e_t_u_r_n": "data",
@@ -20,12 +20,12 @@ var InterfacesLib = map[string]*IoInterfaceClass{
 		},
 	},
 	"StreamOut": {
-		Name:    "StreamOut",
-		Signals: []string{"valid", "accept", "data"},
-		Hls: &HlsInterface{
-			Connector: "HlsStream",
-			Role:      "writer",
-			Aliases: map[string]string{
+		name:    "StreamOut",
+		signals: []string{"valid", "accept", "data"},
+		hls: &HlsInterface{
+			connector: "HlsStream",
+			role:      "writer",
+			aliases: map[string]string{
 				"write_rdy": "accept",
 				"write_req": "valid",
 				"val":       "data",
