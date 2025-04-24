@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
@@ -119,6 +120,7 @@ type RtlProcGen struct {
 	Signals    map[string]*SignalInfo
 	Interfaces map[string]RtlIoType
 	Bundles    map[string]map[string]RtlIoType
+	orderMax   int
 }
 
 func NewRtlProcGen(den *RabbitDen, decl *ast.FunctionDeclaration, desc *FunctionDescriptor, gen *RtlGenerator) *RtlProcGen {
@@ -136,10 +138,24 @@ func NewRtlProcGen(den *RabbitDen, decl *ast.FunctionDeclaration, desc *Function
 	}
 }
 
+func (r *RtlProcGen) defineSignal(name string, info *SignalInfo) {
+	_, ok := r.Signals[name]
+	assert(!ok, "Multiple definitions of ", name)
+	r.Signals[name] = info
+}
+
+func (r *RtlProcGen) addDriver(sig *SignalInfo, d *Driver) {
+	if len(sig.Drivers) == 0 {
+		r.orderMax += 1
+		sig.order = r.orderMax
+	}
+	sig.Drivers = append(sig.Drivers, d)
+}
+
 func (r *RtlProcGen) addStateDriver(name string, state []string, expr *ast.Expression) {
 	sig, ok := r.Signals[name]
 	assert(ok, "Undesigned signal name:", name)
-	sig.Drivers = append(sig.Drivers, &Driver{
+	r.addDriver(sig, &Driver{
 		Expr:    expr,
 		State:   state,
 		Delayed: false,
@@ -170,7 +186,7 @@ func (r *RtlProcGen) Generate() {
 		}
 		fmt.Fprintf(r.OutFile, ",\n  %s logic%s %s", string(port.Mode), rng, port.Name)
 	}
-	fmt.Fprint(r.OutFile, "\n);\n\n")
+	fmt.Fprint(r.OutFile, ");\n\n")
 
 	// Register non-input call parameters as signals
 	for _, param := range callParams {
@@ -180,7 +196,7 @@ func (r *RtlProcGen) Generate() {
 	}
 
 	if r.Decl.Body != nil {
-		block := r.Decl.AsBlock()
+		block := r.Decl.Body.AsBlock()
 		r.emitBlockVariables(block)
 		fmt.Fprint(r.OutFile, "\n")
 		r.collectBlock(block)
@@ -201,13 +217,10 @@ func (r *RtlProcGen) Generate() {
 		}
 	}
 
-	para := false
-	for _, sig := range r.Signals {
-		para = r.emitSignal(sig, para)
-	}
+	r.emitSortedSignals()
 
 	if r.Decl.Body != nil {
-		block := r.Decl.AsBlock()
+		block := r.Decl.Body.AsBlock()
 		for _, stmt := range block.Statements.Nodes {
 			if ast.IsReturnStatement(stmt) && stmt.AsReturnStatement().Expression != nil {
 				fmt.Fprint(r.OutFile, "\n")
@@ -217,6 +230,27 @@ func (r *RtlProcGen) Generate() {
 	}
 
 	fmt.Fprintln(r.OutFile, "endmodule")
+}
+
+func (r *RtlProcGen) emitSortedSignals() {
+	lst := make([]*SignalInfo, len(r.Signals))
+
+	i := 0
+	for _, v := range r.Signals {
+		lst[i] = v
+		i++
+	}
+
+	cmp := func(a int, b int) bool {
+		return lst[a].order < lst[b].order
+	}
+
+	sort.Slice(lst, cmp)
+
+	para := false
+	for _, sig := range lst {
+		para = r.emitSignal(sig, para)
+	}
 }
 
 func (r *RtlProcGen) emitSignal(sig *SignalInfo, para bool) bool {
@@ -257,7 +291,7 @@ func (r *RtlProcGen) emitSignal(sig *SignalInfo, para bool) bool {
 			rhs := r.buildExpression(d.Expr, false, nil, false)
 			fmt.Fprintf(r.OutFile, "        %s <= %s;\n", sig.Name, rhs)
 		}
-		fmt.Fprintln(r.OutFile, "    endcase\n")
+		fmt.Fprintln(r.OutFile, "    endcase")
 		fmt.Fprintln(r.OutFile, "")
 		return false
 	}
@@ -314,7 +348,7 @@ func (r *RtlProcGen) emitSignal(sig *SignalInfo, para bool) bool {
 	first := true
 	if sig.Init != nil {
 		fmt.Fprint(r.OutFile, "if (reset)\n    ")
-		val := buildConstant(sig.Desc, sig.Init)
+		val := buildConstant(sig.Desc, sig.Init, false)
 		fmt.Fprintf(r.OutFile, "  %s <= %s;\n", sig.Name, val)
 		first = false
 	}
@@ -588,10 +622,10 @@ func (r *RtlProcGen) buildExpression(expr *ast.Node, delayed bool, tt *checker.T
 			}
 		}
 
+	case ast.KindStringLiteral:
+		return expr.Text()
+
 	case ast.KindNumericLiteral:
-		if expr.Kind == ast.KindStringLiteral {
-			return expr.Text()
-		}
 		var desc *checker.TypeDescriptor
 		if tt != nil {
 			desc = checker.GetTypeDescriptor(r.Tc, tt, expr, false)
@@ -599,14 +633,14 @@ func (r *RtlProcGen) buildExpression(expr *ast.Node, delayed bool, tt *checker.T
 			desc = checker.GetTypeDescriptor(r.Tc, r.Tc.GetTypeAtLocation(expr), expr, false)
 		}
 		if desc != nil {
-			return buildConstant(desc, expr)
+			return buildConstant(desc, expr, decimal)
 		}
 
 		value := checker.GetConstExpression(expr)
 		if num, ok := value.(jsnum.Number); ok {
 			f := float64(num)
 			if decimal {
-				return fmt.Sprintf("%f", f)
+				return fmt.Sprintf("%d", int64(f))
 			}
 
 			x := f
@@ -644,19 +678,27 @@ var verilogTokenOp = map[ast.Kind]string{
 	ast.KindExclamationEqualsToken:       "!=",
 	ast.KindEqualsEqualsEqualsToken:      "==",
 	ast.KindExclamationEqualsEqualsToken: "!=",
+	ast.KindEqualsGreaterThanToken:       "=>",
 	ast.KindPlusToken:                    "+",
 	ast.KindMinusToken:                   "-",
 	ast.KindAsteriskToken:                "*",
+	ast.KindHashPlusToken:                "+",
+	ast.KindHashMinusToken:               "-",
+	ast.KindHashAsteriskToken:            "*",
 	ast.KindSlashToken:                   "/",
 	ast.KindPercentToken:                 "%",
+	ast.KindLessThanLessThanToken:        "<<",
+	ast.KindGreaterThanGreaterThanToken:  ">>",
 	ast.KindAmpersandToken:               "&",
 	ast.KindBarToken:                     "|",
 	ast.KindCaretToken:                   "^",
 	ast.KindExclamationToken:             "!",
 	ast.KindTildeToken:                   "~",
+	ast.KindAmpersandAmpersandToken:      "&&",
+	ast.KindBarBarToken:                  "||",
 }
 
-func buildConstant(desc *checker.TypeDescriptor, expr *ast.Node) string {
+func buildConstant(desc *checker.TypeDescriptor, expr *ast.Node, decimal bool) string {
 	value := checker.GetConstExpression(expr)
 	if value == nil {
 		panic("buildConstant: expression did not evaluate to constant")
@@ -665,6 +707,11 @@ func buildConstant(desc *checker.TypeDescriptor, expr *ast.Node) string {
 	switch v := value.(type) {
 	case jsnum.Number:
 		n := float64(v)
+
+		if decimal {
+			return fmt.Sprintf("%d", int64(n))
+		}
+
 		negative := n < 0
 		x := n
 		if negative {
@@ -717,7 +764,7 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 		fun := call.Expression
 		if ast.IsPropertyAccessExpression(fun) {
 			pa := fun.AsPropertyAccessExpression()
-			op := pa.Text()
+			op := pa.Name().Text()
 			if ast.IsIdentifier(pa.Expression) {
 				name := pa.Expression.AsIdentifier().Text
 				typ := r.Tc.GetTypeAtLocation(pa.Expression)
@@ -729,7 +776,7 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 							assert(ast.IsArrowFunction(cond))
 							cond = cond.AsArrowFunction().Body
 						}
-						sig.Drivers = append(sig.Drivers, &Driver{
+						r.addDriver(sig, &Driver{
 							Expr:    call.Arguments.Nodes[0],
 							Cond:    cond,
 							Delayed: false,
@@ -741,7 +788,7 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 						if len(call.Arguments.Nodes) == 3 {
 							cond = call.Arguments.Nodes[2]
 						}
-						sig.Drivers = append(sig.Drivers, &Driver{
+						r.addDriver(sig, &Driver{
 							Addr:    call.Arguments.Nodes[0],
 							Expr:    call.Arguments.Nodes[1],
 							Cond:    cond,
@@ -750,8 +797,8 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 					}
 				}
 			} else if ast.IsPropertyAccessExpression(pa.Expression) {
-				pa0 := fun.AsPropertyAccessExpression()
-				op0 := pa0.Text()
+				pa0 := pa.Expression.AsPropertyAccessExpression()
+				op0 := pa0.Name().Text()
 				if ast.IsIdentifier(pa0.Expression) {
 					name := pa0.Expression.AsIdentifier().Text
 					if op0 == "next" && op == "is" {
@@ -762,7 +809,7 @@ func (r *RtlProcGen) collectExpression(expr *ast.Node, parentType *checker.Type)
 								assert(ast.IsArrowFunction(cond))
 								cond = cond.AsArrowFunction().Body
 							}
-							sig.Drivers = append(sig.Drivers, &Driver{
+							r.addDriver(sig, &Driver{
 								Expr:    call.Arguments.Nodes[0],
 								Cond:    cond,
 								Delayed: true,
@@ -788,7 +835,7 @@ func (r *RtlProcGen) emitStatementVariables(stmt *ast.Node) {
 		r.emitVariableDeclarationListVariables(vs.DeclarationList.AsVariableDeclarationList())
 	case ast.KindTypeAliasDeclaration:
 		td := stmt.AsTypeAliasDeclaration()
-		if td.Kind == ast.KindUnionType {
+		if td.Type.Kind == ast.KindUnionType {
 			enumType := td.Type.AsUnionTypeNode()
 			enums := []string{}
 			for _, t := range enumType.Types.Nodes {
@@ -796,7 +843,7 @@ func (r *RtlProcGen) emitStatementVariables(stmt *ast.Node) {
 					enums = append(enums, t.AsLiteralTypeNode().Literal.Text())
 				}
 			}
-			fmt.Fprintf(r.OutFile, "  typedef enum {%s} %s_t;\n\n", strings.Join(enums, ", "), td.Text())
+			fmt.Fprintf(r.OutFile, "  typedef enum {%s} %s_t;\n\n", strings.Join(enums, ", "), td.Name().Text())
 		}
 	}
 }
@@ -816,7 +863,8 @@ func (r *RtlProcGen) emitVariableDeclarationListVariables(lst *ast.VariableDecla
 				fmt.Fprintf(r.OutFile, "  %s_t %s;\n", checker.GetReferenceTypeSymbol(elem).Name, name)
 			} else {
 				desc := checker.RequireTypeDescriptor(r.Tc, elem, decl.Initializer())
-				r.Signals[name] = &SignalInfo{Name: name, Desc: desc, Drivers: []*Driver{}}
+				init := getSignalInitializer(decl.Initializer())
+				r.defineSignal(name, &SignalInfo{Name: name, Desc: desc, Init: init, Drivers: []*Driver{}})
 				rng := ""
 				if desc.Width > 1 {
 					rng = fmt.Sprintf(" [%d:0]", desc.Width-1)
@@ -841,7 +889,7 @@ func (r *RtlProcGen) emitVariableDeclarationListVariables(lst *ast.VariableDecla
 				rng = fmt.Sprintf(" [%d:0]", desc.Width-1)
 			}
 
-			r.Signals[name] = &SignalInfo{Name: name, Desc: desc, Depth: &depth, Drivers: []*Driver{}}
+			r.defineSignal(name, &SignalInfo{Name: name, Desc: desc, Depth: &depth, Drivers: []*Driver{}})
 			fmt.Fprintf(r.OutFile, "  logic%s %s[%d];\n", rng, name, depth)
 		} else if isStreamType(typ) {
 			io, ok := getPortType("client", typ, r.Tc, false)
@@ -885,6 +933,7 @@ type SignalInfo struct {
 	Drivers []*Driver
 	Depth   *uint32
 	Init    *ast.Node
+	order   int
 }
 
 type Driver struct {
@@ -1208,6 +1257,20 @@ func mapName(name string, subst map[string]string) string {
 		return v
 	}
 	return name
+}
+
+func getSignalInitializer(expr *ast.Expression) *ast.Expression {
+	if expr != nil {
+		if ast.IsCallExpression(expr) {
+			call := expr.AsCallExpression()
+			if ast.IsIdentifier(call.Expression) && call.Expression.AsIdentifier().Text == "signal" {
+				if len(call.Arguments.Nodes) == 1 {
+					return call.Arguments.Nodes[0]
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func buildBundle(ty *checker.Type, node *ast.Node, tc *checker.Checker) (map[string]RtlIoType, bool) {

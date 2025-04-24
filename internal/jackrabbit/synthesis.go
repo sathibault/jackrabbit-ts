@@ -28,7 +28,7 @@ func (syn *Synthesizer) Synthesize(den *RabbitDen, sourceFile *ast.SourceFile, t
 	sd := den.GetSourceDescriptor(sourceFile)
 	if sd != nil {
 		var rtlGen *RtlGenerator
-		if sd.HasModuleType("rtl") {
+		if sd.HasModuleType("logic") {
 			rtlGen = NewRtlGenerator(den, sourceFile, tc)
 		}
 		visit := func(node *ast.Node) bool {
@@ -43,7 +43,7 @@ func (syn *Synthesizer) Synthesize(den *RabbitDen, sourceFile *ast.SourceFile, t
 						hlsGen := NewHlsProcGen(den, decl, fd, tc, true)
 						syn.sm.Xic.Generate(hlsGen)
 					}
-					if fd.moduleType != nil && *fd.moduleType == "rtl" {
+					if fd.moduleType != nil && *fd.moduleType == "logic" {
 						rtlGen.Generate(decl, fd)
 					}
 				}
