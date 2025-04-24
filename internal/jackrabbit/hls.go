@@ -851,9 +851,26 @@ func (h *HlsProcGen) emitVariableDeclarationListVariables(lst *ast.VariableDecla
 		h.lastVar = xout.Ele(tag, mergeMaps(map[string]string{
 			"name": name,
 		}, genVarType(info)))
-		if tag == "memory" && decl.Initializer() != nil && !checker.IsArrayConstructor(decl.Initializer()) {
+		if tag == "memory" && decl.Initializer() != nil {
 			data := []string{}
-			extractArrayData(decl.Initializer(), h.tc, data)
+			expr := decl.Initializer()
+			if checker.IsArrayConstructor(expr) {
+				continue
+			}
+			if expr.Kind == ast.KindCallExpression {
+				call := expr.AsCallExpression()
+				if call.Expression.Kind == ast.KindIdentifier {
+					id := call.Expression.AsIdentifier()
+					if id.Text == "array" && len(call.Arguments.Nodes) >= 1 {
+						if len(call.Arguments.Nodes) == 1 {
+							continue
+						}
+						extractArrayOptionData(info, call.Arguments.Nodes[1], h.tc, data)
+					}
+				}
+			} else {
+				extractArrayData(expr, h.tc, data)
+			}
 			h.memoryInit[name] = data
 		}
 	}
@@ -947,6 +964,35 @@ func castIfNeededDesc(si, di *checker.TypeDescriptor, xout *XMLBuilder) *XMLBuil
 		})
 	}
 	return xout
+}
+
+func extractArrayOptionData(desc *checker.TypeDescriptor, expr *ast.Node, c *checker.Checker, data []string) {
+	assert(ast.IsObjectLiteralExpression(expr), "array options must be object literal")
+	obj := expr.AsObjectLiteralExpression()
+	for _, prop := range obj.Properties.Nodes {
+		if ast.IsPropertyAssignment(prop) {
+			assign := prop.AsPropertyAssignment()
+			if assign.Symbol.Name == "fill" {
+				v := checker.TsEvaluateExpr(assign.Initializer, c)
+				if v == nil {
+					assert(false, "Non-constant array fill option")
+				}
+				assert(len(desc.Shape) > 0)
+				var N uint32 = 1
+				for _, sz := range desc.Shape {
+					N *= sz
+				}
+				var i uint32
+				for i = 0; i < N; i++ {
+					data = append(data, valueString(v))
+				}
+				return
+			} else if assign.Symbol.Name == "init" {
+				extractArrayData(assign.Initializer, c, data)
+			}
+		}
+	}
+	assert(false)
 }
 
 func extractArrayData(expr *ast.Node, c *checker.Checker, data []string) {
