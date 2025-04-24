@@ -160,7 +160,7 @@ func usualBinaryOverload(leftType *Type, left *ast.Node, rightType *Type, right 
 				}
 			}
 			rw := max(w1, w2) + jsnum.Number(ext)
-			return makeBinaryResultType(leftType, rightType, rw)
+			return makeRtlBase(leftType, makeBinaryResultType(arg1, arg2, rw))
 		}
 	} else if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
 		if carry {
