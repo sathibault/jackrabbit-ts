@@ -638,6 +638,7 @@ func (p *Program) Emit(options EmitOptions) *EmitResult {
 			sourceMapDataList: nil,
 			writer:            nil,
 			sourceFile:        sourceFile,
+			tc:                p.checkersByFile[sourceFile],
 		}
 		emitters = append(emitters, emitter)
 		wg.Queue(func() {

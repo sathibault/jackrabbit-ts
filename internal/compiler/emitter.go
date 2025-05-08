@@ -6,6 +6,7 @@ import (
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/binder"
+	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/compiler/diagnostics"
 	"github.com/microsoft/typescript-go/internal/core"
 	"github.com/microsoft/typescript-go/internal/printer"
@@ -34,6 +35,7 @@ type emitter struct {
 	writer             printer.EmitTextWriter
 	paths              *outputPaths
 	sourceFile         *ast.SourceFile
+	tc                 *checker.Checker
 }
 
 func (e *emitter) emit() {
@@ -68,6 +70,8 @@ func (e *emitter) getModuleTransformer(emitContext *printer.EmitContext, resolve
 func (e *emitter) getScriptTransformers(emitContext *printer.EmitContext, sourceFile *ast.SourceFile) []*transformers.Transformer {
 	var tx []*transformers.Transformer
 	options := e.host.Options()
+
+	tx = append(tx, transformers.NewJackrabbitTransformer(emitContext, e.tc))
 
 	// JS files don't use reference calculations as they don't do import elision, no need to calculate it
 	importElisionEnabled := !options.VerbatimModuleSyntax.IsTrue() && !ast.IsInJSFile(sourceFile.AsNode())

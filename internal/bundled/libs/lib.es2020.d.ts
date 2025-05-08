@@ -31,7 +31,6 @@ See the Apache Version 2.0 License for specific language governing permissions
 and limitations under the License.
 ***************************************************************************** */
 
-
 /// <reference no-default-lib="true"/>
 
 /// <reference lib="es2019" />
@@ -44,22 +43,24 @@ and limitations under the License.
 /// <reference lib="es2020.symbol.wellknown" />
 /// <reference lib="es2020.intl" />
 
+declare function $reify<T extends number>(): T;
 
 interface Bits {
-  _bits: true;
+    _bits: true;
 }
 
 interface RtlBits {
-  _rtl: true;
+    _rtl: true;
 }
 
 interface UInt<W extends number> extends Bits {
-  signed: false;
-  data: W;
+    signed: false;
+    data: W;
 }
+
 interface Int<W extends number> extends Bits {
-  signed: true;
-  data: W;
+    signed: true;
+    data: W;
 }
 
 type bit = UInt<1>;
@@ -73,13 +74,13 @@ type int32 = Int<32>;
 type int64 = Int<64>;
 type float32 = number;
 type float64 = number;
-declare function uint8(x: number|Bits|RtlBits): UInt<8>;
-declare function uint16(x: number|Bits|RtlBits): UInt<16>;
-declare function uint32(x: number|Bits|RtlBits): UInt<32>;
-declare function uint64(x: number|Bits|RtlBits): UInt<64>;
-declare function int8(x: number|Bits|RtlBits): Int<8>;
-declare function int16(x: number|Bits|RtlBits): Int<16>;
-declare function int32(x: number|Bits|RtlBits): Int<32>;
-declare function int64(x: number|Bits|RtlBits): Int<64>;
-declare function float32(x: number|Bits|RtlBits): number;
-declare function float64(x: number|Bits|RtlBits): number;
+declare function uint8(x: number | Bits | RtlBits): UInt<8>;
+declare function uint16(x: number | Bits | RtlBits): UInt<16>;
+declare function uint32(x: number | Bits | RtlBits): UInt<32>;
+declare function uint64(x: number | Bits | RtlBits): UInt<64>;
+declare function int8(x: number | Bits | RtlBits): Int<8>;
+declare function int16(x: number | Bits | RtlBits): Int<16>;
+declare function int32(x: number | Bits | RtlBits): Int<32>;
+declare function int64(x: number | Bits | RtlBits): Int<64>;
+declare function float32(x: number | Bits | RtlBits): number;
+declare function float64(x: number | Bits | RtlBits): number;

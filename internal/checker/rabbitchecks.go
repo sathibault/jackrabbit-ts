@@ -105,6 +105,11 @@ func GetResolvedParameterTypes(c *Checker, node *ast.Node) ([]*Type, *Type) {
 	return types, c.getReturnTypeOfSignature(s)
 }
 
+func GetResolveTypeParameters(c *Checker, node *ast.Node) []*Type {
+	s := c.getResolvedSignature(node, nil, CheckModeNormal)
+	return s.typeParameters
+}
+
 func GetDeclarationParameterTypes(c *Checker, node *ast.Node) ([]*Type, *Type) {
 	s := c.getSignatureFromDeclaration(node)
 	types := make([]*Type, 0, len(s.parameters))
@@ -524,6 +529,10 @@ func mustParseInt(s string) uint32 {
 		panic(err)
 	}
 	return i
+}
+
+func GetLiteralUintValue(t *Type) (uint32, bool) {
+	return NumberToUint32(t.AsLiteralType().value)
 }
 
 func NumberToUint32(val any) (uint32, bool) {
