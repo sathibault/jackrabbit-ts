@@ -219,12 +219,18 @@ func (c *Checker) isTypeRelatedTo(source *Type, target *Type, relation *Relation
 	if source.flags&TypeFlagsStructuredOrInstantiable != 0 || target.flags&TypeFlagsStructuredOrInstantiable != 0 {
 		return c.checkTypeRelatedTo(source, target, relation, nil /*errorNode*/)
 	}
+	if source.flags&TypeFlagsMathLiteral != 0 && target.flags&TypeFlagsMathLiteral != 0 {
+		return c.equivalentMathTypes(source, target)
+	}
 	return false
 }
 
 func (c *Checker) isSimpleTypeRelatedTo(source *Type, target *Type, relation *Relation, errorReporter ErrorReporter) bool {
 	s := source.flags
 	t := target.flags
+	if s&TypeFlagsMathLiteral != 0 {
+		return t&TypeFlagsNumberLike != 0
+	}
 	if t&TypeFlagsAny != 0 || s&TypeFlagsNever != 0 || source == c.wildcardType {
 		return true
 	}
@@ -2748,6 +2754,11 @@ func (r *Relater) isRelatedToEx(originalSource *Type, originalTarget *Type, recu
 		}
 		if result != TernaryFalse {
 			return result
+		}
+	}
+	if source.flags&TypeFlagsMathLiteral != 0 && target.flags&TypeFlagsMathLiteral != 0 {
+		if r.c.equivalentMathTypes(source, target) {
+			return TernaryTrue
 		}
 	}
 	if reportErrors {

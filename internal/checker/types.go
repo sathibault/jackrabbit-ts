@@ -395,7 +395,7 @@ const (
 	TypeFlagsStringMapping   TypeFlags = 1 << 28 // Uppercase/Lowercase type
 	TypeFlagsReserved1       TypeFlags = 1 << 29 // Used by union/intersection type construction
 	TypeFlagsReserved2       TypeFlags = 1 << 30 // Used by union/intersection type construction
-	TypeFlagsReserved3       TypeFlags = 1 << 31
+	TypeFlagsReserved3       TypeFlags = 1 << 31 // Used by MathLiteralType
 
 	TypeFlagsAnyOrUnknown                  = TypeFlagsAny | TypeFlagsUnknown
 	TypeFlagsNullable                      = TypeFlagsUndefined | TypeFlagsNull
@@ -441,6 +441,7 @@ const (
 	TypeFlagsIncludesConstrainedTypeVariable = TypeFlagsReserved1
 	TypeFlagsIncludesError                   = TypeFlagsReserved2
 	TypeFlagsNotPrimitiveUnion               = TypeFlagsAny | TypeFlagsUnknown | TypeFlagsVoid | TypeFlagsNever | TypeFlagsObject | TypeFlagsIntersection | TypeFlagsIncludesInstantiable
+	TypeFlagsMathLiteral                     = TypeFlagsReserved3
 )
 
 type ObjectFlags uint32
@@ -563,6 +564,7 @@ func (t *Type) AsUnionType() *UnionType                     { return t.data.(*Un
 func (t *Type) AsIntersectionType() *IntersectionType       { return t.data.(*IntersectionType) }
 func (t *Type) AsIndexType() *IndexType                     { return t.data.(*IndexType) }
 func (t *Type) AsIndexedAccessType() *IndexedAccessType     { return t.data.(*IndexedAccessType) }
+func (t *Type) AsMathLiteralType() *MathLiteralType         { return t.data.(*MathLiteralType) }
 func (t *Type) AsTemplateLiteralType() *TemplateLiteralType { return t.data.(*TemplateLiteralType) }
 func (t *Type) AsStringMappingType() *StringMappingType     { return t.data.(*StringMappingType) }
 func (t *Type) AsSubstitutionType() *SubstitutionType       { return t.data.(*SubstitutionType) }
@@ -722,6 +724,45 @@ type LiteralType struct {
 func (t *LiteralType) Value() any {
 	return t.value
 }
+
+////////
+
+type MathKind uint16
+
+const (
+	MathKindIntrinsic = iota
+	MathKindBinary
+)
+
+type MathTypeTerm interface {
+	Kind() MathKind
+}
+
+type IntrinsicMathTerm struct {
+	intrinsic string
+	argument  *Type
+}
+
+func (it IntrinsicMathTerm) Kind() MathKind {
+	return MathKindIntrinsic
+}
+
+type BinaryMathTerm struct {
+	operator  ast.Kind
+	leftType  *Type
+	rightType *Type
+}
+
+func (bt BinaryMathTerm) Kind() MathKind {
+	return MathKindIntrinsic
+}
+
+type MathLiteralType struct {
+	TypeBase
+	term MathTypeTerm
+}
+
+////////
 
 // UniqueESSymbolTypeData
 

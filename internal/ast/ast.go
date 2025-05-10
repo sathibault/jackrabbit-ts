@@ -1111,6 +1111,14 @@ func (n *Node) AsLiteralTypeNode() *LiteralTypeNode {
 	return n.data.(*LiteralTypeNode)
 }
 
+func (n *Node) AsIntrinsicMathTypeNode() *IntrinsicMathTypeNode {
+	return n.data.(*IntrinsicMathTypeNode)
+}
+
+func (n *Node) AsBinaryMathTypeNode() *BinaryMathTypeNode {
+	return n.data.(*BinaryMathTypeNode)
+}
+
 func (n *Node) AsJsxNamespacedName() *JsxNamespacedName {
 	return n.data.(*JsxNamespacedName)
 }
@@ -7227,6 +7235,88 @@ func (node *LiteralTypeNode) Clone(f NodeFactoryCoercible) *Node {
 func IsLiteralTypeNode(node *Node) bool {
 	return node.Kind == KindLiteralType
 }
+
+//////////
+
+// InstrinsicMathTypeNode
+
+type IntrinsicMathTypeNode struct {
+	TypeNodeBase
+	Instrinsic *IdentifierNode
+	Argument   *TypeNode
+}
+
+func (f *NodeFactory) NewInstrinsicMathTypeNode(intrinsic *IdentifierNode, argument *TypeNode) *Node {
+	data := &IntrinsicMathTypeNode{}
+	data.Instrinsic = intrinsic
+	data.Argument = argument
+	return f.newNode(KindIntrinsicMathType, data)
+}
+
+func (f *NodeFactory) UpdateInstrinsicMathTypeNode(node *IntrinsicMathTypeNode, intrinsic *IdentifierNode, argument *TypeNode) *Node {
+	if intrinsic != node.Instrinsic || argument != node.Argument {
+		return updateNode(f.NewInstrinsicMathTypeNode(intrinsic, argument), node.AsNode(), f.hooks)
+	}
+	return node.AsNode()
+}
+
+func (node *IntrinsicMathTypeNode) ForEachChild(v Visitor) bool {
+	return visit(v, node.Instrinsic) || visit(v, node.Argument)
+}
+
+func (node *IntrinsicMathTypeNode) VisitEachChild(v *NodeVisitor) *Node {
+	return v.Factory.UpdateInstrinsicMathTypeNode(node, v.visitNode(node.Instrinsic), v.visitNode(node.Argument))
+}
+
+func (node *IntrinsicMathTypeNode) Clone(f NodeFactoryCoercible) *Node {
+	return cloneNode(f.AsNodeFactory().NewInstrinsicMathTypeNode(node.Instrinsic, node.Argument), node.AsNode(), f.AsNodeFactory().hooks)
+}
+
+func IsInstrinsicMathTypeNode(node *Node) bool {
+	return node.Kind == KindIntrinsicMathType
+}
+
+// BinaryMathTypeNode
+
+type BinaryMathTypeNode struct {
+	TypeNodeBase
+	OperatorToken *TokenNode
+	Left          *TypeNode
+	Right         *TypeNode
+}
+
+func (f *NodeFactory) NewBinaryMathTypeNode(left *TypeNode, operatorToken *TokenNode, right *Node) *TypeNode {
+	data := &BinaryMathTypeNode{}
+	data.Left = left
+	data.OperatorToken = operatorToken
+	data.Right = right
+	return f.newNode(KindBinaryMathType, data)
+}
+
+func (f *NodeFactory) UpdateBinaryMathTypeNode(node *BinaryMathTypeNode, left *TypeNode, operatorToken *TokenNode, right *TypeNode) *Node {
+	if left != node.Left || operatorToken != node.OperatorToken || right != node.Right {
+		return updateNode(f.NewBinaryMathTypeNode(left, operatorToken, right), node.AsNode(), f.hooks)
+	}
+	return node.AsNode()
+}
+
+func (node *BinaryMathTypeNode) ForEachChild(v Visitor) bool {
+	return visit(v, node.Left) || visit(v, node.OperatorToken) || visit(v, node.Right)
+}
+
+func (node *BinaryMathTypeNode) VisitEachChild(v *NodeVisitor) *Node {
+	return v.Factory.UpdateBinaryMathTypeNode(node, v.visitNode(node.Left), v.visitToken(node.OperatorToken), v.visitNode(node.Right))
+}
+
+func (node *BinaryMathTypeNode) Clone(f NodeFactoryCoercible) *Node {
+	return cloneNode(f.AsNodeFactory().NewBinaryMathTypeNode(node.Left, node.OperatorToken, node.Right), node.AsNode(), f.AsNodeFactory().hooks)
+}
+
+func IsBinaryMathTypeNode(node *Node) bool {
+	return node.Kind == KindBinaryMathType
+}
+
+//////////
 
 // ThisTypeNode
 

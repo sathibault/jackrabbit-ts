@@ -728,8 +728,10 @@ func (p *Parser) isListElement(parsingContext ParsingContext, inErrorRecovery bo
 		return p.isStartOfParameter(false /*isJSDocParameter*/)
 	case PCJSDocParameters:
 		return p.isStartOfParameter(true /*isJSDocParameter*/)
-	case PCTypeArguments, PCTupleElementTypes:
+	case PCTupleElementTypes:
 		return p.token == ast.KindCommaToken || p.isStartOfType(false /*inStartOfParameter*/)
+	case PCTypeArguments:
+		return p.token == ast.KindCommaToken || p.isStartOfType(false /*inStartOfParameter*/) || p.token == ast.KindPrivateIdentifier
 	case PCHeritageClauses:
 		return p.isHeritageClause()
 	case PCImportOrExportSpecifiers:
@@ -2686,6 +2688,11 @@ func (p *Parser) parseNonArrayType() *ast.Node {
 		return p.parseTypeReference()
 	case ast.KindTemplateHead:
 		return p.parseTemplateType()
+	case ast.KindPrivateIdentifier:
+		p.scanner.ReScanHashToken()
+		fallthrough
+	case ast.KindHashToken:
+		return p.parseMathType()
 	default:
 		return p.parseTypeReference()
 	}
@@ -2777,6 +2784,52 @@ func (p *Parser) parseLiteralTypeNode(negative bool) *ast.Node {
 	result := p.factory.NewLiteralTypeNode(expression)
 	p.finishNode(result, pos)
 	return result
+}
+
+func (p *Parser) parseMathType() *ast.Node {
+	// p.token may not be KindHashToken due to ReScanHashToken
+	p.nextToken()
+	return p.parseMathFactorType()
+}
+
+func (p *Parser) parseMathTermType() *ast.Node {
+	pos := p.nodePos()
+	result := p.parseMathFactorType()
+	for p.token == ast.KindPlusToken || p.token == ast.KindMinusToken {
+		op := p.parseTokenNode()
+		right := p.parseMathFactorType()
+		result = p.factory.NewBinaryMathTypeNode(result, op, right)
+	}
+	p.finishNode(result, pos)
+	return result
+}
+
+func (p *Parser) parseMathFactorType() *ast.Node {
+	if p.token == ast.KindOpenParenToken {
+		pos := p.nodePos()
+		p.parseExpected(ast.KindOpenParenToken)
+		term := p.parseMathTermType()
+		p.parseExpected(ast.KindCloseParenToken)
+		result := p.factory.NewParenthesizedTypeNode(term)
+		p.finishNode(result, pos)
+		return result
+	} else if p.token == ast.KindIdentifier {
+		name := p.scanner.TokenValue()
+		if name == "log2" {
+			pos := p.nodePos()
+			intrinsic := p.parseIdentifierName()
+			p.parseExpected(ast.KindOpenParenToken)
+			argument := p.parseMathTermType()
+			p.parseExpected(ast.KindCloseParenToken)
+			result := p.factory.NewInstrinsicMathTypeNode(intrinsic, argument)
+			p.finishNode(result, pos)
+			return result
+		} else {
+			return p.parseTypeReference()
+		}
+	} else {
+		return p.parseTypeReference()
+	}
 }
 
 func (p *Parser) parseTypeReference() *ast.Node {

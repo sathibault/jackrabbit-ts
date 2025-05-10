@@ -228,6 +228,8 @@ const (
 	KindTemplateLiteralType
 	KindTemplateLiteralTypeSpan
 	KindImportType
+	KindIntrinsicMathType
+	KindBinaryMathType
 	// Binding patterns
 	KindObjectBindingPattern
 	KindArrayBindingPattern

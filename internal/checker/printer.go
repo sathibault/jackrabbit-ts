@@ -194,6 +194,8 @@ func (p *Printer) printTypeNoAlias(t *Type) {
 		p.printRecursive(t, (*Printer).printConditionalType)
 	case t.flags&TypeFlagsTemplateLiteral != 0:
 		p.printTemplateLiteralType(t)
+	case t.flags&TypeFlagsReserved3 != 0:
+		p.printMathLiteralType(t)
 	case t.flags&TypeFlagsStringMapping != 0:
 		p.printStringMappingType(t)
 	case t.flags&TypeFlagsSubstitution != 0:
@@ -260,6 +262,30 @@ func (p *Printer) printBigIntLiteral(b jsnum.PseudoBigInt) {
 
 func (p *Printer) printUniqueESSymbolType(t *Type) {
 	p.print("unique symbol")
+}
+
+func (p *Printer) printMathLiteralType(t *Type) {
+	math := t.AsMathLiteralType()
+	p.print("#")
+	p.printMathTermType(math.term)
+}
+
+func (p *Printer) printMathTermType(term MathTypeTerm) {
+	switch t := term.(type) {
+	case IntrinsicMathTerm:
+		p.print(t.intrinsic)
+		p.print("(")
+		p.printType(t.argument)
+		p.print(")")
+	case BinaryMathTerm:
+		p.print("(")
+		p.printType(t.leftType)
+		p.print(t.operator.String())
+		p.printType(t.rightType)
+		p.print(")")
+	default:
+		panic("Unhandled MathTermType in printer")
+	}
 }
 
 func (p *Printer) printTemplateLiteralType(t *Type) {

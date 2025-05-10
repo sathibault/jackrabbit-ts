@@ -21234,6 +21234,8 @@ func (c *Checker) getTypeFromTypeNodeWorker(node *ast.Node) *Type {
 		return c.getTypeFromTypeOperatorNode(node)
 	case ast.KindIndexedAccessType:
 		return c.getTypeFromIndexedAccessTypeNode(node)
+	case ast.KindIntrinsicMathType, ast.KindBinaryMathType:
+		return c.getTypeFromMathTypeNode(node)
 	case ast.KindTemplateLiteralType:
 		return c.getTypeFromTemplateTypeNode(node)
 	case ast.KindMappedType:
@@ -21280,6 +21282,24 @@ func (c *Checker) getTypeFromLiteralTypeNode(node *ast.Node) *Type {
 		links.resolvedType = c.getRegularTypeOfLiteralType(c.checkExpression(node.AsLiteralTypeNode().Literal))
 	}
 	return links.resolvedType
+}
+
+func (c *Checker) getTypeFromMathTypeNode(node *ast.Node) *Type {
+	switch node.Kind {
+	case ast.KindIntrinsicMathType:
+		it := node.AsIntrinsicMathTypeNode()
+		intrinsic := it.Instrinsic.Text()
+		argument := c.getTypeFromTypeNode(it.Argument)
+		return c.newIntrinsicMathType(intrinsic, argument)
+	case ast.KindBinaryMathType:
+		bt := node.AsBinaryMathTypeNode()
+		operator := bt.OperatorToken.Kind
+		leftType := c.getTypeFromTypeNode(bt.Left)
+		rightType := c.getTypeFromTypeNode(bt.Right)
+		return c.newBinaryMathType(operator, leftType, rightType)
+	default:
+		panic("Unhandled case in getTypeFromTypeOperatorNode")
+	}
 }
 
 func (c *Checker) getTypeFromTypeLiteralOrFunctionOrConstructorTypeNode(node *ast.Node) *Type {
@@ -23459,6 +23479,25 @@ func (c *Checker) newIndexType(target *Type, indexFlags IndexFlags) *Type {
 	data.target = target
 	data.indexFlags = indexFlags
 	return c.newType(TypeFlagsIndex, ObjectFlagsNone, data)
+}
+
+func (c *Checker) newIntrinsicMathType(intrinsic string, argument *Type) *Type {
+	term := IntrinsicMathTerm{}
+	term.intrinsic = intrinsic
+	term.argument = argument
+	data := &MathLiteralType{}
+	data.term = term
+	return c.newType(TypeFlagsMathLiteral, ObjectFlagsNone, data)
+}
+
+func (c *Checker) newBinaryMathType(operator ast.Kind, leftType *Type, rightType *Type) *Type {
+	term := BinaryMathTerm{}
+	term.operator = operator
+	term.leftType = leftType
+	term.rightType = rightType
+	data := &MathLiteralType{}
+	data.term = term
+	return c.newType(TypeFlagsMathLiteral, ObjectFlagsNone, data)
 }
 
 func (c *Checker) newTemplateLiteralType(texts []string, types []*Type) *Type {
