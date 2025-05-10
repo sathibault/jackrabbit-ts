@@ -11671,6 +11671,10 @@ func (c *Checker) resolveRef(ty *Type) *Type {
 		args := ResolvedTypeArguments(ty)
 		c.resolveRef(args[0])
 	}
+	if IsSimdType(ty) {
+		args := ResolvedTypeArguments(ty)
+		c.resolveRef(args[0])
+	}
 	return ty
 }
 

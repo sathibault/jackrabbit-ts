@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -125,13 +126,13 @@ func usualBinaryOverload(leftType *Type, left *ast.Node, rightType *Type, right 
 		}
 		rw := max(w1, w2) + jsnum.Number(ext)
 		return makeBinaryResultType(leftType, rightType, rw)
-	} else if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
+	} else if IsBitType(leftType) && ResolvedTypeArguments(leftType) != nil && right != nil && isConstNumberExpression(right) {
 		if carry {
 			w1 := getNumberLiteralValue(ResolvedTypeArguments(leftType)[0])
 			return makeBinaryResultType(leftType, rightType, w1)
 		}
 		return leftType
-	} else if IsBitType(rightType) && ResolvedTypeArguments(rightType) != nil && isConstNumberExpression(left) {
+	} else if IsBitType(rightType) && ResolvedTypeArguments(rightType) != nil && left != nil && isConstNumberExpression(left) {
 		if carry {
 			w1 := getNumberLiteralValue(ResolvedTypeArguments(rightType)[0])
 			return makeBinaryResultType(leftType, rightType, w1)
@@ -139,48 +140,53 @@ func usualBinaryOverload(leftType *Type, left *ast.Node, rightType *Type, right 
 		return rightType
 	}
 
-	if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil &&
-		IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil {
-		arg1 := ResolvedTypeArguments(leftType)[0]
-		arg2 := ResolvedTypeArguments(rightType)[0]
-		if IsBitType(arg1) && ResolvedTypeArguments(arg1) != nil &&
-			IsBitType(arg2) && ResolvedTypeArguments(arg2) != nil {
-			w1 := getNumberLiteralValue(ResolvedTypeArguments(arg1)[0])
-			w2 := getNumberLiteralValue(ResolvedTypeArguments(arg2)[0])
-			ext := 0
-			if carry {
-				if w1 == w2 {
-					s1 := isSignedBitType(arg1)
-					s2 := isSignedBitType(arg2)
-					if s1 == s2 {
-						ext = 1
-					} else {
-						ext = 2
-					}
+	if leftElm, leftOk := extractRtl(leftType); leftOk {
+		if rightElm, rightOk := extractRtl(rightType); rightOk {
+			out := usualBinaryOverload(leftElm, nil, rightElm, nil, carry)
+			if out != nil {
+				return makeRtlBase(leftType, out)
+			}
+		} else if isConstNumberExpression(right) {
+			out := usualBinaryOverload(leftElm, nil, rightType, right, carry)
+			if out != nil {
+				return makeRtlBase(leftType, out)
+			}
+		}
+	} else if rightElm, rightOk := extractRtl(rightType); rightOk {
+		if isConstNumberExpression(left) {
+			out := usualBinaryOverload(leftType, left, rightElm, nil, carry)
+			if out != nil {
+				return makeRtlBase(rightType, out)
+			}
+		}
+	}
+
+	if lss, lst, lsOk := SimdTypeDesc(leftType); lsOk {
+		if rss, rst, rsOk := SimdTypeDesc(rightType); rsOk {
+			fmt.Fprintln(os.Stderr, "SIMD op", lss, rss)
+			if reflect.DeepEqual(lss, rss) {
+				out := usualBinaryOverload(lst, nil, rst, nil, carry)
+				if out != nil {
+					return makeSimdType(leftType.AsTypeReference(), lss, out)
 				}
 			}
-			rw := max(w1, w2) + jsnum.Number(ext)
-			return makeRtlBase(leftType, makeBinaryResultType(arg1, arg2, rw))
-		}
-	} else if IsRtlType(leftType) && ResolvedTypeArguments(leftType) != nil && isConstNumberExpression(right) {
-		if carry {
-			arg1 := ResolvedTypeArguments(leftType)[0]
-			if IsBitType(arg1) && ResolvedTypeArguments(arg1) != nil {
-				w1 := getNumberLiteralValue(ResolvedTypeArguments(arg1)[0])
-				makeRtlBase(leftType, makeBinaryResultType(arg1, arg1, w1+jsnum.Number(1)))
+		} else if isConstNumberExpression(right) {
+			out := usualBinaryOverload(lst, nil, rightType, right, carry)
+			if out != nil {
+				return makeSimdType(leftType.AsTypeReference(), lss, out)
 			}
-		} else {
-			return toRtlBase(leftType)
 		}
-	} else if IsRtlType(rightType) && ResolvedTypeArguments(rightType) != nil && isConstNumberExpression(left) {
-		if carry {
-			arg2 := ResolvedTypeArguments(rightType)[0]
-			if IsBitType(arg2) && ResolvedTypeArguments(arg2) != nil {
-				w1 := getNumberLiteralValue(ResolvedTypeArguments(arg2)[0])
-				makeRtlBase(rightType, makeBinaryResultType(arg2, arg2, w1+jsnum.Number(1)))
+	} else if rss, rst, rsOk := SimdTypeDesc(rightType); rsOk {
+		if isConstNumberExpression(left) {
+			out := usualBinaryOverload(leftType, left, rst, nil, carry)
+			if out != nil {
+				return makeSimdType(rightType.AsTypeReference(), rss, out)
 			}
-		} else {
-			return toRtlBase(rightType)
+		}
+	} else {
+		if isTypeReference(leftType) {
+			DumpType(leftType)
+			fmt.Fprintln(os.Stderr, "SIMD fail", leftType.checker.TypeToString(leftType))
 		}
 	}
 	return nil
@@ -358,6 +364,62 @@ func BitTypeDesc(t *Type) (bool, uint32) {
 	return isSigned, uint32(width)
 }
 
+func IsSimdType(t *Type) bool {
+	if t.objectFlags&ObjectFlagsReference != 0 {
+		data := t.AsTypeReference()
+		return data.symbol != nil && data.symbol.Name == "SIMD"
+	}
+	return false
+}
+
+func SimdTypeDesc(t *Type) ([]uint32, *Type, bool) {
+	if IsSimdType(t) {
+		typeArgs := ResolvedTypeArguments(t)
+		if len(typeArgs) == 2 {
+			shape := make([]uint32, 0, 4)
+			N := getNumberLiteralValue(typeArgs[1])
+			shape = append(shape, uint32(N))
+			if innerShape, innerElm, innerOk := SimdTypeDesc(typeArgs[0]); innerOk {
+				shape = append(shape, innerShape...)
+				return shape, innerElm, true
+			} else {
+				return shape, typeArgs[0], true
+			}
+		}
+	}
+	return nil, nil, false
+}
+
+func makeSimdType(base *TypeReference, shape []uint32, elm *Type) *Type {
+	N := base.checker.getNumberLiteralType(jsnum.Number(shape[0]))
+	if len(shape) == 1 {
+		return base.checker.createTypeReference(base.target, []*Type{elm, N})
+	} else {
+		inner := makeSimdType(base, shape[1:], elm)
+		return base.checker.createTypeReference(base.target, []*Type{inner, N})
+	}
+}
+
+func IsRtlBitType(t *Type) bool {
+	if IsRtlType(t) && ResolvedTypeArguments(t) != nil {
+		arg := ResolvedTypeArguments(t)[0]
+		if IsBitType(arg) {
+			return true
+		}
+	}
+	return false
+}
+
+func extractRtl(t *Type) (*Type, bool) {
+	if IsRtlType(t) {
+		typeArgs := ResolvedTypeArguments(t)
+		if len(typeArgs) == 1 {
+			return typeArgs[0], true
+		}
+	}
+	return nil, false
+}
+
 func makeRtlBase(t *Type, arg *Type) *Type {
 	base := rtlBaseType(t)
 	return base.checker.createTypeReference(base.target, []*Type{arg})
@@ -372,16 +434,6 @@ var (
 	rtlCache      = make(map[TypeId]rtl_table)
 	rtlCacheMutex = sync.RWMutex{}
 )
-
-func IsRtlBitType(t *Type) bool {
-	if IsRtlType(t) && ResolvedTypeArguments(t) != nil {
-		arg := ResolvedTypeArguments(t)[0]
-		if IsBitType(arg) {
-			return true
-		}
-	}
-	return false
-}
 
 func isCachedRtlType(t *Type) bool {
 	hit := false
