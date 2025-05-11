@@ -213,7 +213,19 @@ func extendedMultiplyOverload(leftType *Type, left *ast.Node, rightType *Type, r
 			return makeBinaryResultType(leftType, rightType, rw)
 		}
 	}
-	if IsBitType(leftType) || IsRtlType(leftType) {
+
+	if lss, lst, lsOk := SimdTypeDesc(leftType); lsOk {
+		if rss, rst, rsOk := SimdTypeDesc(rightType); rsOk {
+			if reflect.DeepEqual(lss, rss) {
+				out := extendedMultiplyOverload(lst, nil, rst, nil)
+				if out != nil {
+					return makeSimdType(leftType.AsTypeReference(), lss, out)
+				}
+			}
+		}
+	}
+
+	if IsBitType(leftType) || IsRtlType(leftType) || IsSimdType(leftType) {
 		fmt.Fprintln(os.Stderr, "Binary fail", leftType.checker.TypeToString(leftType), rightType.checker.TypeToString(rightType))
 		DumpType(leftType)
 		DumpType(rightType)
@@ -250,6 +262,10 @@ func checkInitializerOverload(target *Type, initType *Type, initializer *ast.Nod
 			log.Println("checkInitializerOverload fail", target.checker.TypeToString(target), initType.checker.TypeToString(initType), exprToString(initializer, target.checker))
 		}
 		return okay
+	} else if _, elm, ok := SimdTypeDesc(target); ok {
+		if checkInitializerOverload(elm, initType, initializer) {
+			return true
+		}
 	}
 	return false
 }
