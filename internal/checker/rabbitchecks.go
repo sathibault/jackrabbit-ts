@@ -89,6 +89,104 @@ func QualifiedFuncName(decl *ast.FunctionDeclaration) *string {
 	panic("invalid declaration name")
 }
 
+type InlineMapper struct {
+	Declartion      *ast.Node
+	CallArgumentMap map[*ast.Symbol]*ast.Node
+	CallTypeMap     map[*ast.Symbol]*ast.Node
+}
+
+func GetInlineCallMapper(c *Checker, factory *ast.NodeFactory, node *ast.Node) *InlineMapper {
+	call := node.AsCallExpression()
+	s := c.getResolvedSignature(node, nil, CheckModeNormal)
+
+	typeArguments := call.TypeParameters()
+	if len(typeArguments) == 0 {
+		// maybe type inference
+		inferred := s.typeParameters
+		if len(inferred) != 0 {
+			typeArguments = make([]*ast.Node, 0, len(inferred))
+			for _, ty := range inferred {
+				typeArguments = append(typeArguments, c.typeToTypeNode(ty, factory))
+			}
+		}
+	}
+
+	typeParameters := s.declaration.TypeParameterList()
+	callTypeMap := make(map[*ast.Symbol]*ast.Node)
+	for idx, param := range typeParameters.Nodes {
+		sym := c.getSymbolOfDeclaration(param)
+		callTypeMap[sym] = typeArguments[idx]
+	}
+
+	// Build a map from parameter name to argument expression
+	callArgumentMap := make(map[*ast.Symbol]*ast.Node)
+	parameters := s.declaration.Parameters()
+	for i, param := range parameters {
+		if i < len(call.Arguments.Nodes) {
+			sym := c.getSymbolOfDeclaration(param)
+			callArgumentMap[sym] = call.Arguments.Nodes[i]
+		}
+	}
+
+	return &InlineMapper{Declartion: s.declaration, CallTypeMap: callTypeMap}
+}
+
+func (c *Checker) typeToTypeNode(t *Type, factory *ast.NodeFactory) *ast.Node {
+	if t == nil {
+		return nil
+	}
+	switch {
+	case t.flags&TypeFlagsString != 0:
+		return factory.NewKeywordTypeNode(ast.KindStringKeyword)
+	case t.flags&TypeFlagsNumber != 0:
+		return factory.NewKeywordTypeNode(ast.KindNumberKeyword)
+	case t.flags&TypeFlagsBoolean != 0:
+		return factory.NewKeywordTypeNode(ast.KindBooleanKeyword)
+	case t.flags&TypeFlagsVoid != 0:
+		return factory.NewKeywordTypeNode(ast.KindVoidKeyword)
+	case t.flags&TypeFlagsUndefined != 0:
+		return factory.NewKeywordTypeNode(ast.KindUndefinedKeyword)
+	case t.flags&TypeFlagsNull != 0:
+		return factory.NewKeywordTypeNode(ast.KindNullKeyword)
+	case t.flags&TypeFlagsTypeParameter != 0:
+		symbol := t.Symbol()
+		if symbol != nil {
+			return factory.NewTypeReferenceNode(factory.NewIdentifier(symbol.Name), nil)
+		}
+	// case t.flags&TypeFlagsUnion != 0:
+	// 	var nodes []*ast.Node
+	// 	for _, u := range t.Types() {
+	// 		nodes = append(nodes, c.typeToTypeNode(u))
+	// 	}
+	// 	return ast.CreateUnionTypeNode(nodes)
+	// case t.flags&TypeFlagsIntersection != 0:
+	// 	var nodes []*ast.Node
+	// 	for _, i := range t.Types() {
+	// 		nodes = append(nodes, c.typeToTypeNode(i))
+	// 	}
+	// 	return ast.CreateIntersectionTypeNode(nodes)
+	case t.flags&TypeFlagsBooleanLiteral != 0:
+		b := t.AsLiteralType().value.(bool)
+		if b {
+			return factory.NewLiteralTypeNode(factory.NewKeywordExpression(ast.KindTrueKeyword))
+		} else {
+			return factory.NewLiteralTypeNode(factory.NewKeywordExpression(ast.KindFalseKeyword))
+		}
+	case t.flags&TypeFlagsStringLiteral != 0:
+		t := t.AsLiteralType().value.(string)
+		return factory.NewLiteralTypeNode(factory.NewStringLiteral(t))
+	case t.flags&TypeFlagsNumberLiteral != 0:
+		n := t.AsLiteralType().value.(jsnum.Number)
+		return factory.NewLiteralTypeNode(factory.NewNumericLiteral(n.String()))
+	case t.flags&TypeFlagsBigIntLiteral != 0:
+		bigint := t.AsLiteralType().value.(jsnum.PseudoBigInt)
+		return factory.NewLiteralTypeNode(factory.NewBigIntLiteral(bigint.String()))
+	}
+
+	// Handle object, array, function types etc. here if needed
+	return nil
+}
+
 type TypeDescriptor struct {
 	IsSigned bool
 	Width    uint32
